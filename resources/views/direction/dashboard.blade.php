@@ -14,7 +14,10 @@
     <span class="material-symbols-outlined" style="font-size:18px;">account_balance_wallet</span> Finances
 </a>
 <a href="{{ route('direction.alumni-posts.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; {{ request()->routeIs('direction.alumni-posts*') ? 'background:var(--color-primary-container); color:var(--color-on-primary);' : 'color:var(--color-on-surface-variant);' }} text-decoration:none; font-size:0.8125rem; font-weight:700;">
-    <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span> Modération Alumni
+    <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span> Alumni disponibles
+</a>
+<a href="{{ route('direction.reports.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; {{ request()->routeIs('direction.reports*') ? 'background:var(--color-primary-container); color:var(--color-on-primary);' : 'color:var(--color-on-surface-variant);' }} text-decoration:none; font-size:0.8125rem; font-weight:700;">
+    <span class="material-symbols-outlined" style="font-size:18px;">assignment</span> Rapports
 </a>
 <a href="{{ route('contact.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; {{ request()->routeIs('contact.*') ? 'background:var(--color-primary-container); color:var(--color-on-primary);' : 'color:var(--color-on-surface-variant);' }} text-decoration:none; font-size:0.8125rem; font-weight:700;">
     <span class="material-symbols-outlined" style="font-size:18px;">mail</span> Contact
@@ -61,6 +64,8 @@
     @endforeach
 </div>
 
+<x-alumni-showcase :alumnis="$recentAlumni" title="Derniers alumni publiés" :featured="true" />
+
 {{-- Présences + Session --}}
 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 350px), 1fr)); gap:1.5rem;">
     <div style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
@@ -104,8 +109,6 @@
         @endif
     </div>
 </div>
-
-<x-alumni-showcase :alumnis="$recentAlumni" title="Derniers alumni" />
 
 <div style="margin-top:1rem; text-align:right;">
     <a href="{{ route('admin.alumnis.index') }}"

@@ -25,6 +25,19 @@
     </a>
 </div>
 
+<form method="GET" action="{{ route('admin.sessions.index') }}" style="display:flex; align-items:end; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;">
+    <label style="font-size:0.8rem; color:var(--color-on-surface-variant);">
+        Filtrer les rentrées par site
+        <select name="site_id" style="display:block; min-width:220px; margin-top:0.25rem; padding:0.55rem 0.75rem; border:1px solid var(--color-outline-variant); border-radius:0.5rem; background:var(--color-surface-container-lowest); color:var(--color-on-surface);">
+            <option value="">Tous les sites accessibles</option>
+            @foreach($sites as $site)
+                <option value="{{ $site->id }}" @selected($selectedSiteId === $site->id)>{{ $site->nom }}</option>
+            @endforeach
+        </select>
+    </label>
+    <button type="submit" style="padding:0.55rem 1rem; border:0; border-radius:0.5rem; background:var(--color-primary-container); color:var(--color-on-primary); font-weight:700; cursor:pointer;">Filtrer</button>
+</form>
+
 <div style="background:var(--color-surface-container-lowest); border-radius:1rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); overflow:hidden;">
     @if($sessions->isEmpty())
     <div style="padding:4rem 2rem; text-align:center; color:var(--color-on-surface-variant);">
@@ -37,6 +50,7 @@
             <thead>
                 <tr style="background:var(--color-surface-container-low); border-bottom:1px solid var(--color-outline-variant);">
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Nom</th>
+                    <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Site</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Période</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Statut</th>
                     <th style="padding:0.875rem 1rem;"></th>
@@ -50,6 +64,10 @@
                     
                     <td style="padding:0.875rem 1rem; color:var(--color-on-surface); font-weight:600;">
                         {{ $session->name }}
+                    </td>
+
+                    <td style="padding:0.875rem 1rem; color:var(--color-on-surface-variant);">
+                        {{ $session->site?->nom ?? '—' }}
                     </td>
                     
                     <td style="padding:0.875rem 1rem; color:var(--color-on-surface-variant);">

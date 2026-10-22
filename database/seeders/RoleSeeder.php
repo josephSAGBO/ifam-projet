@@ -184,6 +184,336 @@ class RoleSeeder extends Seeder
             $responsableRole->syncPermissions($allServicePerms);
         }
 
+        // 6. Rôles et Permissions du Département Administratif et Financier (DAF)
+        $dafPermissions = [
+            'validate financial operations',
+            'create payments',
+            'view payments',
+            'print receipts',
+            'view fees',
+            'view discounts',
+            'manage discounts',
+            'view expenses',
+            'create expenses',
+            'view financial reports',
+            'view administrative dashboard',
+            'view financial dashboard',
+            'view enrollments',
+            'manage enrollments',
+            'view student dossiers',
+            'edit student administrative',
+            'view teacher dossiers',
+            'edit teacher administrative',
+            'view parent dossiers',
+            'view staff dossiers',
+            'view administrative documents',
+            'manage administrative documents',
+            'view archives',
+            'view correspondances',
+        ];
+
+        foreach ($dafPermissions as $perm) {
+            Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
+        }
+
+        // Direction Générale du DAF : vue transversale DAF et pouvoir de validation
+        $roleDgDaf = Role::firstOrCreate(['name' => 'direction_daf', 'guard_name' => 'web']);
+        $roleDgDaf->syncPermissions([
+            'validate financial operations',
+            'view payments',
+            'create payments',
+            'print receipts',
+            'view fees',
+            'view discounts',
+            'manage discounts',
+            'view expenses',
+            'create expenses',
+            'view financial reports',
+            'view administrative dashboard',
+            'view financial dashboard',
+            'view enrollments',
+            'manage enrollments',
+            'view student dossiers',
+            'edit student administrative',
+            'view teacher dossiers',
+            'edit teacher administrative',
+            'view parent dossiers',
+            'view staff dossiers',
+            'view administrative documents',
+            'manage administrative documents',
+            'view archives',
+            'view correspondances',
+        ]);
+
+        // Responsable Administratif et Financier (RAF) : supervise les 2 services sur son site
+        $roleRaf = Role::firstOrCreate(['name' => 'responsable_administratif_financier', 'guard_name' => 'web']);
+        $roleRaf->syncPermissions([
+            'view payments',
+            'create payments',
+            'print receipts',
+            'view fees',
+            'view discounts',
+            'manage discounts',
+            'view expenses',
+            'create expenses',
+            'view financial reports',
+            'view administrative dashboard',
+            'view financial dashboard',
+            'view enrollments',
+            'manage enrollments',
+            'view student dossiers',
+            'edit student administrative',
+            'view teacher dossiers',
+            'edit teacher administrative',
+            'view parent dossiers',
+            'view staff dossiers',
+            'view administrative documents',
+            'manage administrative documents',
+            'view archives',
+            'view correspondances',
+        ]);
+
+        // Service Administratif
+        $roleRespAdmin = Role::firstOrCreate(['name' => 'responsable_administratif', 'guard_name' => 'web']);
+        $roleRespAdmin->syncPermissions([
+            'view administrative dashboard',
+            'view enrollments',
+            'manage enrollments',
+            'view student dossiers',
+            'edit student administrative',
+            'view teacher dossiers',
+            'edit teacher administrative',
+            'view parent dossiers',
+            'view staff dossiers',
+            'view administrative documents',
+            'manage administrative documents',
+            'view archives',
+            'view correspondances',
+            'view fees',
+        ]);
+
+        $roleSecrAdmin = Role::firstOrCreate(['name' => 'secretaire_administratif', 'guard_name' => 'web']);
+        $roleSecrAdmin->syncPermissions([
+            'view administrative dashboard',
+            'view enrollments',
+            'manage enrollments',
+            'view student dossiers',
+            'edit student administrative',
+            'view teacher dossiers',
+            'view parent dossiers',
+            'view administrative documents',
+            'manage administrative documents',
+            'view archives',
+            'view correspondances',
+        ]);
+
+        $roleChargeScol = Role::firstOrCreate(['name' => 'charge_scolarite', 'guard_name' => 'web']);
+        $roleChargeScol->syncPermissions([
+            'view administrative dashboard',
+            'view enrollments',
+            'manage enrollments',
+            'view student dossiers',
+            'edit student administrative',
+            'view administrative documents',
+            'manage administrative documents',
+            'view archives',
+        ]);
+
+        $roleAgentAdmin = Role::firstOrCreate(['name' => 'agent_administratif', 'guard_name' => 'web']);
+        $roleAgentAdmin->syncPermissions([
+            'view administrative dashboard',
+            'view enrollments',
+            'view student dossiers',
+            'view administrative documents',
+            'view archives',
+            'view correspondances',
+        ]);
+
+        // Service Financier
+        $roleRespFin = Role::firstOrCreate(['name' => 'responsable_financier', 'guard_name' => 'web']);
+        $roleRespFin->syncPermissions([
+            'view financial dashboard',
+            'view fees',
+            'view payments',
+            'create payments',
+            'print receipts',
+            'view discounts',
+            'manage discounts',
+            'view expenses',
+            'create expenses',
+            'view financial reports',
+            'view enrollments',
+        ]);
+
+        $roleComptable = Role::firstOrCreate(['name' => 'comptable', 'guard_name' => 'web']);
+        $roleComptable->syncPermissions([
+            'view financial dashboard',
+            'view fees',
+            'view payments',
+            'create payments',
+            'print receipts',
+            'view discounts',
+            'manage discounts',
+            'view expenses',
+            'create expenses',
+            'view financial reports',
+            'view enrollments',
+        ]);
+
+        $roleCaissier = Role::firstOrCreate(['name' => 'caissier', 'guard_name' => 'web']);
+        $roleCaissier->syncPermissions([
+            'view financial dashboard',
+            'view fees',
+            'view payments',
+            'create payments',
+            'print receipts',
+            'view expenses',
+            'view enrollments',
+        ]);
+
+        $roleRecouvrement = Role::firstOrCreate(['name' => 'agent_recouvrement', 'guard_name' => 'web']);
+        $roleRecouvrement->syncPermissions([
+            'view financial dashboard',
+            'view fees',
+            'view payments',
+            'print receipts',
+            'view discounts',
+            'view enrollments',
+        ]);
+
+        // 7. Rôles et Permissions du Département des Affaires Académiques (DAA)
+        $daaPermissions = [
+            // Catalogue partagé (lecture + gestion pour la DG)
+            'view formations',
+            'manage formations',
+            'view modules',
+            'manage modules',
+            // Pédagogie / Études
+            'view academic sessions',
+            'manage academic sessions',
+            'view courses',
+            'manage courses',
+            'view evaluations',
+            'manage evaluations',
+            'view grades',
+            'manage grades',
+            'view attendances',
+            'manage attendances',
+            'view results',
+            'view bulletins',
+            'publish bulletins',
+            'view academic dashboard',
+            // Insertion professionnelle
+            'view insertion dashboard',
+            'view alumni',
+            'manage alumni',
+            'view partnerships',
+            'manage partnerships',
+            'view insertion candidates',
+            'manage insertion followups',
+            'validate insertion partnerships',
+        ];
+
+        foreach ($daaPermissions as $perm) {
+            Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
+        }
+
+        // Direction Générale du DAA : accès transversal lecture + validation catalogue
+        $roleDgDaa = Role::firstOrCreate(['name' => 'direction_daa', 'guard_name' => 'web']);
+        $roleDgDaa->syncPermissions([
+            'view formations',
+            'manage formations',
+            'view modules',
+            'manage modules',
+            'view academic sessions',
+            'manage academic sessions',
+            'view courses',
+            'manage courses',
+            'view evaluations',
+            'manage evaluations',
+            'view grades',
+            'manage grades',
+            'view attendances',
+            'manage attendances',
+            'view results',
+            'view bulletins',
+            'publish bulletins',
+            'view academic dashboard',
+            'view insertion dashboard',
+            'view alumni',
+            'manage alumni',
+            'view partnerships',
+            'manage partnerships',
+            'view insertion candidates',
+            'manage insertion followups',
+            'validate insertion partnerships',
+        ]);
+
+        // Responsable du Département des Affaires Académiques :
+        // supervise les 2 services sur son périmètre de site
+        $roleRespDaa = Role::firstOrCreate(['name' => 'responsable_daa', 'guard_name' => 'web']);
+        $roleRespDaa->syncPermissions([
+            'view formations',
+            'view modules',
+            'view academic sessions',
+            'manage academic sessions',
+            'view courses',
+            'manage courses',
+            'view evaluations',
+            'manage evaluations',
+            'view grades',
+            'manage grades',
+            'view attendances',
+            'manage attendances',
+            'view results',
+            'view bulletins',
+            'publish bulletins',
+            'view academic dashboard',
+            'view insertion dashboard',
+            'view alumni',
+            'manage alumni',
+            'view partnerships',
+            'manage partnerships',
+            'view insertion candidates',
+            'manage insertion followups',
+        ]);
+
+        // Responsable du Service Pédagogie / Études :
+        // gère les cours, évaluations, notes, présences, bulletins sur son site
+        $roleRespEtudes = Role::firstOrCreate(['name' => 'responsable_etudes', 'guard_name' => 'web']);
+        $roleRespEtudes->syncPermissions([
+            'view formations',
+            'view modules',
+            'view academic sessions',
+            'view courses',
+            'manage courses',
+            'view evaluations',
+            'manage evaluations',
+            'view grades',
+            'manage grades',
+            'view attendances',
+            'manage attendances',
+            'view results',
+            'view bulletins',
+            'publish bulletins',
+            'view academic dashboard',
+        ]);
+
+        // Responsable du Service Insertion Professionnelle :
+        // gère les alumni, partenariats et suivis d'insertion sur son site
+        $roleRespInsertion = Role::firstOrCreate(['name' => 'responsable_insertion', 'guard_name' => 'web']);
+        $roleRespInsertion->syncPermissions([
+            'view formations',
+            'view modules',
+            'view insertion dashboard',
+            'view alumni',
+            'manage alumni',
+            'view partnerships',
+            'manage partnerships',
+            'view insertion candidates',
+            'manage insertion followups',
+        ]);
+
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         if (isset($this->command)) {

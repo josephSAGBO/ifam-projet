@@ -468,7 +468,7 @@ class AlumniModuleTest extends TestCase
         $this->assertEquals('draft', $post->fresh()->status);
     }
 
-    public function test_direction_can_moderate_alumni_posts(): void
+    public function test_direction_only_sees_available_alumni_posts_without_moderation_actions(): void
     {
         $directionUser = User::create([
             'first_name' => 'Directeur',
@@ -479,18 +479,34 @@ class AlumniModuleTest extends TestCase
         ]);
         $directionUser->assignRole('direction');
 
-        $post = AlumniPost::create([
+        $availablePost = AlumniPost::create([
             'alumni_id' => $this->alumniProfile->id,
-            'title' => 'Collection automne pour modération direction',
-            'content' => 'Contenu pour test direction',
+            'title' => 'Publication Alumni disponible',
+            'content' => 'Contenu publié visible par la direction',
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+        $pendingPost = AlumniPost::create([
+            'alumni_id' => $this->alumniProfile->id,
+            'title' => 'Publication en attente',
+            'content' => 'Cette publication ne doit pas être affichée à la direction.',
             'status' => 'pending',
         ]);
 
-        // Direction approuve via la route direction
-        $response = $this->actingAs($directionUser)->post(route('direction.alumni-posts.approve', $post));
-        $response->assertRedirect();
-        $post->refresh();
-        $this->assertEquals('published', $post->status);
-        $this->assertEquals($directionUser->id, $post->validated_by);
+        $response = $this->actingAs($directionUser)->get(route('direction.alumni-posts.index'));
+
+        $response->assertOk();
+        $response->assertSee('Alumni disponibles');
+        $response->assertSee($availablePost->title);
+        $response->assertDontSee($pendingPost->title);
+        $response->assertDontSee('En attente de validation');
+        $response->assertDontSee('Refuser la publication');
+        $response->assertDontSee('Décision de modération');
+        $response->assertSee(route('alumni.public.posts.show', $availablePost->slug));
+
+        $this->actingAs($directionUser)
+            ->post('/direction/alumni-posts/'.$pendingPost->id.'/approve')
+            ->assertNotFound();
+        $this->assertSame('pending', $pendingPost->fresh()->status);
     }
 }

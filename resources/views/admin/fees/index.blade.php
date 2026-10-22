@@ -21,6 +21,7 @@
 
 <div style="background:var(--color-surface-container-low); padding:1rem 1.25rem; border-radius:1rem; margin-bottom:1.25rem;">
     <form action="{{ route('admin.fees.index') }}" method="GET" style="display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end;">
+        @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
         <div>
             <label for="session_id" style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem;">
                 Session académique

@@ -18,6 +18,8 @@ class ScheduleController extends Controller
             return view('student.schedule.index', [
                 'enrollments' => collect(),
                 'courses' => collect(),
+                'activeCourses' => collect(),
+                'archivedCourses' => collect(),
             ]);
         }
 
@@ -57,7 +59,20 @@ class ScheduleController extends Controller
                 ->get();
         }
 
-        return view('student.schedule.index', compact('enrollments', 'courses', 'hasCoursesInEnrolledFormations'));
+        $activeCourses = $courses
+            ->reject(fn (Course $course) => $course->academicSession?->status === 'terminee')
+            ->values();
+        $archivedCourses = $courses
+            ->filter(fn (Course $course) => $course->academicSession?->status === 'terminee')
+            ->values();
+
+        return view('student.schedule.index', compact(
+            'enrollments',
+            'courses',
+            'activeCourses',
+            'archivedCourses',
+            'hasCoursesInEnrolledFormations',
+        ));
     }
 
     public function downloadDocument(DocumentCours $document)

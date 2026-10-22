@@ -140,6 +140,25 @@
                 </div>
 
                 <div>
+                    <div style="font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.375rem;">Site de rattachement</div>
+                    @if($user->hasAnyRole(['administrateur', 'direction']) || $user->isDepartmentHead())
+                        <span style="padding:0.25rem 0.625rem; border-radius:0.375rem; font-size:0.75rem; font-weight:600; background:var(--color-surface-container); color:var(--color-on-surface-variant); display:inline-block;">
+                            Transversal (Tous les sites)
+                        </span>
+                    @elseif($user->sites->isNotEmpty())
+                        <div style="display:flex; flex-wrap:wrap; gap:0.25rem;">
+                            @foreach($user->sites as $site)
+                                <span style="padding:0.25rem 0.625rem; border-radius:0.375rem; font-size:0.75rem; font-weight:600; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;">
+                                    {{ $site->nom }} ({{ $site->ville }})
+                                </span>
+                            @endforeach
+                        </div>
+                    @else
+                        <span style="font-size:0.8125rem; color:#9ca3af; font-style:italic;">Aucun site assigné</span>
+                    @endif
+                </div>
+
+                <div>
                     <div style="font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.25rem;">Dernière connexion</div>
                     <div style="color:var(--color-on-surface); font-size:0.875rem;">
                         {{ $user->last_login_at ? $user->last_login_at->format('d/m/Y H:i') : 'Jamais connecté' }}

@@ -44,6 +44,28 @@
             @error('name') <span style="color:#dc2626; font-size:0.75rem; margin-top:0.25rem; display:block;">{{ $message }}</span> @enderror
         </div>
 
+        <div>
+            <label style="display:block; font-size:0.875rem; font-weight:600; color:var(--color-on-surface); margin-bottom:0.5rem;">
+                Site
+            </label>
+            @if($isSuperAdmin)
+                <select name="site_id" required
+                        style="width:100%; box-sizing:border-box; height:44px; padding:0 1rem; border-radius:0.625rem; border:1px solid var(--color-outline-variant); background:var(--color-surface-container-low); font-size:0.9375rem; color:var(--color-on-surface);">
+                    @foreach($sites as $site)
+                        <option value="{{ $site->id }}" {{ (string) old('site_id', $room->site_id) === (string) $site->id ? 'selected' : '' }}>
+                            {{ $site->nom }} ({{ $site->ville }})
+                        </option>
+                    @endforeach
+                </select>
+                @error('site_id') <span style="color:#dc2626; font-size:0.75rem; margin-top:0.25rem; display:block;">{{ $message }}</span> @enderror
+            @else
+                <div style="height:44px; padding:0 1rem; border-radius:0.625rem; border:1px solid var(--color-outline-variant); background:var(--color-surface-container-high); display:flex; align-items:center; font-size:0.9375rem; color:var(--color-on-surface); font-weight:600;">
+                    <span class="material-symbols-outlined" style="font-size:18px; color:var(--color-primary); margin-right:0.5rem;">apartment</span>
+                    {{ $room->site?->nom ?? 'Site actuel' }}
+                </div>
+            @endif
+        </div>
+
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
             <div>
                 <label style="display:block; font-size:0.875rem; font-weight:600; color:var(--color-on-surface); margin-bottom:0.5rem;">

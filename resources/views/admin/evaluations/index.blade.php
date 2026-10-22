@@ -28,19 +28,37 @@
 {{-- Filter Form --}}
 <div style="background:var(--color-surface-container-low); padding:1rem 1.5rem; border-radius:1rem; margin-bottom:1.5rem; display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-end;">
     <form action="{{ route('admin.evaluations.index') }}" method="GET" style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap;">
+        @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
+        @if($isResponsableEtudes)
+        <div>
+            <label for="formation_id" style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem;">Formation</label>
+            <select id="formation_id" name="formation_id"
+                    style="height:38px; min-width:190px; padding:0 0.75rem; border-radius:0.5rem; border:1px solid var(--color-outline-variant); background:var(--color-surface-container-lowest); font-size:0.875rem;">
+                <option value="">Toutes les formations</option>
+                @foreach($formations as $formation)
+                    <option value="{{ $formation->id }}" @selected($selectedFormationId === $formation->id)>{{ $formation->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endif
         <div>
             <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem;">Filtrer par Module</label>
-            <select name="module_id" onchange="this.form.submit()"
+            <select name="module_id" @if(!$isResponsableEtudes) onchange="this.form.submit()" @endif
                     style="height:38px; padding:0 1rem; border-radius:0.5rem; border:1px solid var(--color-outline-variant); background:var(--color-surface-container-lowest); font-size:0.875rem;">
                 <option value="">Tous les modules</option>
                 @foreach($modules as $module)
-                    <option value="{{ $module->id }}" {{ request('module_id') == $module->id ? 'selected' : '' }}>
+                    <option value="{{ $module->id }}" @selected($selectedModuleId === $module->id)>
                         {{ $module->name }}
                     </option>
                 @endforeach
             </select>
         </div>
-        @if(request()->has('module_id') && request('module_id') != '')
+        @if($isResponsableEtudes)
+        <button type="submit" style="height:38px; padding:0 1rem; border:0; border-radius:0.5rem; background:var(--color-primary-container); color:var(--color-on-primary); font-weight:700; cursor:pointer;">
+            Filtrer
+        </button>
+        @endif
+        @if($selectedFormationId || $selectedModuleId || $selectedSiteId)
         <a href="{{ route('admin.evaluations.index') }}" style="height:38px; display:inline-flex; align-items:center; color:var(--color-primary); text-decoration:none; font-size:0.875rem; font-weight:600;">
             Réinitialiser
         </a>

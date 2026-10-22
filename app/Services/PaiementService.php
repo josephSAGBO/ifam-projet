@@ -41,9 +41,11 @@ class PaiementService
             ? $enrollment->payments
             : $enrollment->payments()->get();
 
-        return (float) $payments->sum(
-            fn (Payment $payment) => (float) ($payment->montant ?? $payment->amount_paid ?? 0)
-        );
+        return (float) $payments
+            ->filter(fn (Payment $p) => $p->status !== 'rejete')
+            ->sum(
+                fn (Payment $payment) => (float) ($payment->montant ?? $payment->amount_paid ?? 0)
+            );
     }
 
     /**
@@ -125,8 +127,11 @@ class PaiementService
         $datePaiement = $data['date_paiement'] ?? $data['payment_date'] ?? now()->toDateString();
         $mode = $data['mode'] ?? 'especes';
         $userId = $enregistreParId ?? auth()->id();
+        $status = $data['status'] ?? 'en_attente';
+        $validatedBy = $data['validated_by'] ?? null;
+        $validatedAt = $data['validated_at'] ?? null;
 
-        return DB::transaction(function () use ($enrollment, $montant, $datePaiement, $mode, $userId, $data): Payment {
+        return DB::transaction(function () use ($enrollment, $montant, $datePaiement, $mode, $userId, $data, $status, $validatedBy, $validatedAt): Payment {
             $payment = Payment::create([
                 'inscription_id' => $enrollment->id,
                 'student_profile_id' => $enrollment->student_profile_id,
@@ -138,6 +143,9 @@ class PaiementService
                 'reference' => $data['reference'] ?? null,
                 'enregistre_par' => $userId,
                 'notes' => $data['notes'] ?? null,
+                'status' => $status,
+                'validated_by' => $validatedBy,
+                'validated_at' => $validatedAt,
             ]);
 
             if (blank($payment->reference)) {

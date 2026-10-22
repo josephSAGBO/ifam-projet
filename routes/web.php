@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AlumniController;
 use App\Http\Controllers\Admin\AlumniPostModerationController;
 use App\Http\Controllers\Admin\ChangeRequestController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\DiscountController;
 use App\Http\Controllers\Admin\EnrollmentController;
 use App\Http\Controllers\Admin\EvaluationController;
@@ -17,10 +18,13 @@ use App\Http\Controllers\Admin\ParentController;
 use App\Http\Controllers\Admin\PartnershipController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\ResultController;
+use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\ServiceController;
 use App\Http\Controllers\Admin\SessionController;
 use App\Http\Controllers\Admin\SessionManagerController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\SiteController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Admin\TeacherController;
 use App\Http\Controllers\Admin\UserController;
@@ -34,6 +38,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordChangeController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\Direction\FinanceController;
+use App\Http\Controllers\Direction\ReportController;
 use App\Http\Controllers\Parent\ChildController;
 use App\Http\Controllers\Public\AlumniDirectoryController;
 use App\Http\Controllers\Public\AlumniPostPublicController;
@@ -85,7 +90,24 @@ Route::get('/dashboard', function () {
     if (! $user) {
         return redirect()->route('login');
     }
-    if ($user->hasRole('administrateur')) {
+    if ($user->hasRole([
+        'administrateur',
+        'responsable_site',
+        'direction_daf',
+        'responsable_administratif_financier',
+        'responsable_administratif',
+        'secretaire_administratif',
+        'charge_scolarite',
+        'agent_administratif',
+        'responsable_financier',
+        'comptable',
+        'caissier',
+        'agent_recouvrement',
+        'direction_daa',
+        'responsable_daa',
+        'responsable_etudes',
+        'responsable_insertion',
+    ])) {
         return redirect()->route('admin.dashboard');
     }
     if ($user->hasRole('direction')) {
@@ -116,10 +138,24 @@ Route::middleware('auth')->group(function () {
     Route::get('/contact', [ContactController::class, 'index'])->name('contact.index');
     Route::post('/contact', [ContactController::class, 'store'])->name('contact.store');
     Route::get('/alumni-directory', [ConnectedAlumniDirectoryController::class, 'index'])->name('alumni.directory.index');
+
+    // Notifications personnelles (accessibles par TOUS les utilisateurs connectés)
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/{notification}/open', [NotificationController::class, 'markReadAndRedirect'])->name('notifications.open');
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.markRead');
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
+    Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // Alias admin.* pour rétro-compatibilité totale
+    Route::get('/admin/notifications', [NotificationController::class, 'index'])->name('admin.notifications.index');
+    Route::get('/admin/notifications/{notification}/open', [NotificationController::class, 'markReadAndRedirect'])->name('admin.notifications.open');
+    Route::patch('/admin/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('admin.notifications.markRead');
+    Route::patch('/admin/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('admin.notifications.markAllRead');
+    Route::delete('/admin/notifications/{notification}', [NotificationController::class, 'destroy'])->name('admin.notifications.destroy');
 });
 
-// ── Espace Administrateur ─────────────────────────────────────────────────
-Route::middleware(['auth', 'role:administrateur'])
+// ── Espace Administrateur, DAF & DAA ──────────────────────────────────────
+Route::middleware(['auth', 'role:administrateur|responsable_site|direction_daf|responsable_administratif_financier|responsable_administratif|secretaire_administratif|charge_scolarite|agent_administratif|responsable_financier|comptable|caissier|agent_recouvrement|direction_daa|responsable_daa|responsable_etudes|responsable_insertion'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
@@ -132,8 +168,7 @@ Route::middleware(['auth', 'role:administrateur'])
         Route::patch('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
         Route::post('users/{user}/resend-activation', [UserController::class, 'resendActivation'])->name('users.resendActivation');
 
-        // ── Étudiants ─────────────────────────────────────────────
-        Route::resource('students', StudentController::class);
+        Route::resource('students', StudentController::class)->only(['index', 'show', 'edit', 'update']);
 
         // ── Parents ───────────────────────────────────────────────
         Route::resource('parents', ParentController::class);
@@ -172,6 +207,10 @@ Route::middleware(['auth', 'role:administrateur'])
         Route::resource('fees', App\Http\Controllers\Admin\FeeController::class)->only(['index']);
         Route::get('/payments/print', [PaymentController::class, 'printReport'])->name('payments.print');
         Route::get('/payments/{payment}/receipt', [PaymentController::class, 'receipt'])->name('payments.receipt');
+        Route::patch('/payments/{payment}/receipt/publish', [PaymentController::class, 'publishReceipt'])->name('payments.receipt.publish');
+        Route::delete('/payments/{payment}/receipt/publish', [PaymentController::class, 'unpublishReceipt'])->name('payments.receipt.unpublish');
+        Route::patch('/payments/{payment}/validate', [PaymentController::class, 'validatePayment'])->name('payments.validate');
+        Route::patch('/payments/{payment}/reject', [PaymentController::class, 'rejectPayment'])->name('payments.reject');
         Route::resource('payments', PaymentController::class);
         Route::resource('discounts', DiscountController::class);
         Route::resource('expense-categories', ExpenseCategoryController::class);
@@ -195,18 +234,26 @@ Route::middleware(['auth', 'role:administrateur'])
         Route::post('alumni-posts/{post}/reject', [AlumniPostModerationController::class, 'reject'])->name('alumnis.posts.reject');
         Route::post('alumni-posts/{post}/unpublish', [AlumniPostModerationController::class, 'unpublish'])->name('alumnis.posts.unpublish');
 
-        // ── Notifications ─────────────────────────────────────────
-        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        // ── Envoi de notifications (réservé aux gestionnaires) ────
         Route::get('/notifications/create', [NotificationController::class, 'create'])->name('notifications.create');
         Route::post('/notifications', [NotificationController::class, 'store'])->name('notifications.store');
-        Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.markRead');
-        Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
-        Route::delete('/notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
 
         // ── Contact (Phase 4) ─────────────────────────────────────
         Route::resource('contact', App\Http\Controllers\Admin\ContactController::class)->only(['index', 'show']);
 
-        // ── Paramètres ────────────────────────────────────────────
+        // ── Paramétrage SuperAdmin ────────────────────────────────
+        Route::middleware('role:administrateur')->group(function () {
+            Route::patch('sites/{site}/toggle-active', [SiteController::class, 'toggleActive'])->name('sites.toggle-active');
+            Route::resource('sites', SiteController::class);
+
+            Route::resource('roles', RoleController::class);
+
+            Route::patch('departments/{department}/toggle-active', [DepartmentController::class, 'toggleActive'])->name('departments.toggle-active');
+            Route::resource('departments', DepartmentController::class);
+
+            Route::patch('services/{service}/toggle-active', [ServiceController::class, 'toggleActive'])->name('services.toggle-active');
+            Route::resource('services', ServiceController::class);
+        });
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::patch('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.updateProfile');
         Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.updatePassword');
@@ -222,17 +269,26 @@ Route::middleware(['auth', 'role:direction'])
         Route::get('/students/{student}', [App\Http\Controllers\Direction\StudentController::class,  'show'])->name('students.show');
         Route::get('/finance', [FinanceController::class,  'index'])->name('finance.index');
 
-        // Modération Alumni par la Direction
+        // Consultation des publications Alumni disponibles par la Direction
         Route::get('alumni-posts', [AlumniPostModerationController::class, 'index'])->name('alumni-posts.index');
-        Route::get('alumni-posts-alias', [AlumniPostModerationController::class, 'index'])->name('alumnis.posts.index');
-        Route::get('alumni-posts/{post}', [AlumniPostModerationController::class, 'show'])->name('alumni-posts.show');
-        Route::get('alumni-posts/{post}/detail', [AlumniPostModerationController::class, 'show'])->name('alumnis.posts.show');
-        Route::post('alumni-posts/{post}/approve', [AlumniPostModerationController::class, 'approve'])->name('alumni-posts.approve');
-        Route::post('alumni-posts/{post}/approve-alias', [AlumniPostModerationController::class, 'approve'])->name('alumnis.posts.approve');
-        Route::post('alumni-posts/{post}/reject', [AlumniPostModerationController::class, 'reject'])->name('alumni-posts.reject');
-        Route::post('alumni-posts/{post}/reject-alias', [AlumniPostModerationController::class, 'reject'])->name('alumnis.posts.reject');
-        Route::post('alumni-posts/{post}/unpublish', [AlumniPostModerationController::class, 'unpublish'])->name('alumni-posts.unpublish');
-        Route::post('alumni-posts/{post}/unpublish-alias', [AlumniPostModerationController::class, 'unpublish'])->name('alumnis.posts.unpublish');
+
+        // Rapports des services transmis à la Direction
+        Route::prefix('reports')->name('reports.')->group(function () {
+            Route::get('/missing', [ReportController::class, 'missing'])->name('missing');
+            Route::get('/', [ReportController::class, 'index'])->name('index');
+            Route::get('/{report}', [ReportController::class, 'show'])->name('show');
+            Route::post('/{report}/return', [ReportController::class, 'returnForCorrection'])->name('return');
+            Route::get('/{report}/pdf', [ReportController::class, 'exportPdf'])->name('pdf');
+        });
+    });
+
+// ── Espace Service : Rapports & Activités ─────────────────────────────────
+Route::middleware(['auth'])
+    ->prefix('service')
+    ->name('service.')
+    ->group(function () {
+        Route::resource('reports', App\Http\Controllers\Service\ReportController::class);
+        Route::post('reports/{report}/send', [App\Http\Controllers\Service\ReportController::class, 'send'])->name('reports.send');
     });
 
 // ── Espace Enseignant ─────────────────────────────────────────────────────
@@ -242,6 +298,7 @@ Route::middleware(['auth', 'role:enseignant'])
     ->group(function () {
         Route::get('/dashboard', App\Http\Controllers\Teacher\DashboardController::class)->name('dashboard');
         Route::resource('courses', CourseController::class)->only(['index', 'show']);
+        Route::delete('/courses/{course}/archive', [CourseController::class, 'hideArchived'])->name('courses.archive.destroy');
         Route::resource('attendance', AttendanceController::class)->only(['index', 'store', 'update']);
         Route::resource('grades', App\Http\Controllers\Teacher\GradeController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::post('/grades/evaluation', [App\Http\Controllers\Teacher\GradeController::class, 'createEvaluation'])->name('grades.createEvaluation');
@@ -262,6 +319,7 @@ Route::middleware(['auth', 'role:etudiant'])
         Route::get('/bulletins/{publication}', [BulletinController::class, 'show'])->name('bulletins.show');
         Route::get('/bulletins/{publication}/pdf', [BulletinController::class, 'pdf'])->name('bulletins.pdf');
         Route::get('/fees', [FeeController::class, 'index'])->name('fees');
+        Route::get('/payments/{payment}/receipt', [PaymentController::class, 'studentReceipt'])->name('payments.receipt');
         Route::get('/attendance', [App\Http\Controllers\Student\AttendanceController::class, 'index'])->name('attendance');
         Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
         Route::get('/course-documents/{courseDocument}/download', [DocumentController::class, 'downloadCourseDocument'])->name('course-documents.download');
@@ -279,6 +337,7 @@ Route::middleware(['auth', 'role:parent'])
         Route::get('/children/{child}/bulletins/{publication}', [App\Http\Controllers\Parent\BulletinController::class, 'show'])->name('bulletins.show');
         Route::get('/children/{child}/bulletins/{publication}/pdf', [App\Http\Controllers\Parent\BulletinController::class, 'pdf'])->name('bulletins.pdf');
         Route::get('/fees', [App\Http\Controllers\Parent\FeeController::class, 'index'])->name('fees');
+        Route::get('/payments/{payment}/receipt', [PaymentController::class, 'parentReceipt'])->name('payments.receipt');
     });
 
 // ── Espace Alumni ─────────────────────────────────────────────────────────

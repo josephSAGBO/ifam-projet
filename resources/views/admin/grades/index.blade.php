@@ -16,6 +16,7 @@
 </div>
 
 <form method="GET" action="{{ route('admin.grades.index') }}" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:1rem; align-items:end; margin-bottom:1.5rem; padding:1.25rem; background:var(--color-surface-container-lowest); border-radius:0.75rem; border:1px solid var(--color-outline-variant);">
+    @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
     <div>
         <label for="session-select" style="display:block; margin-bottom:0.375rem; font-size:0.75rem; font-weight:700; color:var(--color-on-surface-variant);">Session</label>
         <select id="session-select" name="session_id" onchange="this.form.submit()" style="width:100%; height:42px; padding:0 0.75rem; border:1px solid var(--color-outline-variant); border-radius:0.5rem; background:var(--color-surface); color:var(--color-on-surface);">

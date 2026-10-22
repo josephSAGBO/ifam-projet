@@ -23,8 +23,16 @@ class FormationController extends Controller
         return view('admin.formations.index', compact('formations'));
     }
 
+    protected function authorizeManageFormations(): void
+    {
+        if (auth()->check() && ! auth()->user()->can('manage formations') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daa'])) {
+            abort(403, 'Accès interdit : la gestion du catalogue partagé des formations est réservée à la Direction Générale et aux administrateurs.');
+        }
+    }
+
     public function create()
     {
+        $this->authorizeManageFormations();
         $parcoursList = Parcours::orderBy('nom')->get();
 
         return view('admin.formations.create', compact('parcoursList'));
@@ -32,6 +40,7 @@ class FormationController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorizeManageFormations();
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:formations,name'],
             'description' => ['nullable', 'string'],
@@ -52,6 +61,7 @@ class FormationController extends Controller
 
     public function edit(Formation $formation)
     {
+        $this->authorizeManageFormations();
         $parcoursList = Parcours::orderBy('nom')->get();
 
         return view('admin.formations.edit', compact('formation', 'parcoursList'));
@@ -59,6 +69,7 @@ class FormationController extends Controller
 
     public function update(Request $request, Formation $formation)
     {
+        $this->authorizeManageFormations();
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:formations,name,'.$formation->id],
             'description' => ['nullable', 'string'],
@@ -77,6 +88,7 @@ class FormationController extends Controller
 
     public function destroy(Formation $formation)
     {
+        $this->authorizeManageFormations();
         $formation->delete();
 
         return back()->with('success', 'Formation supprimée avec succès.');

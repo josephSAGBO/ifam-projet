@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\PaiementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -82,6 +83,95 @@ class ParcoursPaymentTest extends TestCase
         $response->assertSee(asset('img/catchetComptable.jpg'));
         $response->assertDontSee('CachetDir.jpg');
         $response->assertDontSee('Signaturenum.jpg');
+
+        Role::firstOrCreate(['name' => 'etudiant', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'parent', 'guard_name' => 'web']);
+        $student->assignRole('etudiant');
+
+        $this->actingAs($student)
+            ->get(route('student.payments.receipt', $payment))
+            ->assertNotFound();
+
+        $financeRole = Role::firstOrCreate(['name' => 'responsable_financier', 'guard_name' => 'web']);
+        $printReceipts = Permission::firstOrCreate(['name' => 'print receipts', 'guard_name' => 'web']);
+        $financeRole->givePermissionTo($printReceipts);
+        $financeUser = User::create([
+            'first_name' => 'Responsable',
+            'last_name' => 'Financier',
+            'email' => 'receipt-finance@ifam.test',
+            'password' => Hash::make('Secret123!'),
+            'is_active' => true,
+        ]);
+        $financeUser->assignRole($financeRole);
+        $financeUser->sites()->attach($enrollment->site_id);
+
+        Role::firstOrCreate(['name' => 'direction_daa', 'guard_name' => 'web']);
+        $academicDirector = User::create([
+            'first_name' => 'Direction',
+            'last_name' => 'DAA',
+            'email' => 'receipt-daa@ifam.test',
+            'password' => Hash::make('Secret123!'),
+            'is_active' => true,
+        ]);
+        $academicDirector->assignRole('direction_daa');
+        $this->actingAs($academicDirector)
+            ->patch(route('admin.payments.receipt.publish', $payment))
+            ->assertForbidden();
+
+        $this->actingAs($financeUser)
+            ->patch(route('admin.payments.receipt.publish', $payment))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment->id,
+            'receipt_published_by' => $financeUser->id,
+        ]);
+
+        $studentFees = $this->actingAs($student)->get(route('student.fees'));
+        $studentFees->assertOk();
+        $studentFees->assertSee(route('student.payments.receipt', $payment));
+        $this->get(route('student.payments.receipt', $payment))
+            ->assertOk()
+            ->assertSee('Reçu de paiement')
+            ->assertSee('Retour à ma scolarité');
+
+        $parent = User::create([
+            'first_name' => 'Parent',
+            'last_name' => 'Etudiante',
+            'email' => 'receipt-parent@ifam.test',
+            'password' => Hash::make('Secret123!'),
+            'is_active' => true,
+        ]);
+        $parent->assignRole('parent');
+        $parent->children()->attach($student->id, ['relationship' => 'mère']);
+
+        $parentFees = $this->actingAs($parent)->get(route('parent.fees'));
+        $parentFees->assertOk();
+        $parentFees->assertSee(route('parent.payments.receipt', $payment));
+        $this->get(route('parent.payments.receipt', $payment))
+            ->assertOk()
+            ->assertSee('Reçu de paiement');
+
+        $otherStudent = User::create([
+            'first_name' => 'Autre',
+            'last_name' => 'Etudiant',
+            'email' => 'receipt-other-student@ifam.test',
+            'password' => Hash::make('Secret123!'),
+            'is_active' => true,
+        ]);
+        $otherStudent->studentProfile()->create([]);
+        $otherStudent->assignRole('etudiant');
+
+        $this->actingAs($otherStudent)
+            ->get(route('student.payments.receipt', $payment))
+            ->assertNotFound();
+
+        $this->actingAs($financeUser)
+            ->delete(route('admin.payments.receipt.unpublish', $payment))
+            ->assertRedirect();
+        $this->actingAs($student)
+            ->get(route('student.payments.receipt', $payment))
+            ->assertNotFound();
     }
 
     public function test_admin_can_filter_payments_by_inclusive_dates_and_print_all_matching_rows(): void

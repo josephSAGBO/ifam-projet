@@ -16,6 +16,7 @@
 </div>
 
 <form method="GET" action="{{ route('admin.attendance.index') }}" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; margin-bottom:1.5rem; padding:1.25rem; background:var(--color-surface-container-lowest); border:1px solid var(--color-outline-variant); border-radius:1rem;">
+    @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
     <div>
         <label for="session_id" style="display:block; margin-bottom:0.375rem; font-size:0.75rem; font-weight:700; color:var(--color-on-surface-variant);">Session</label>
         <select id="session_id" name="session_id" onchange="this.form.submit()" style="width:100%; height:42px; border:1px solid var(--color-outline-variant); border-radius:0.5rem; background:var(--color-surface); padding:0 0.75rem; color:var(--color-on-surface);">
@@ -67,6 +68,9 @@
                     <input type="hidden" name="session_id" value="{{ $selectedSessionId }}">
                     <input type="hidden" name="formation_id" value="{{ $selectedFormationId }}">
                     <input type="hidden" name="course_id" value="{{ $course->id }}">
+                    @if($selectedSiteId)
+                        <input type="hidden" name="site_id" value="{{ $selectedSiteId }}">
+                    @endif
                     <label for="attendance-date" style="font-size:0.75rem; font-weight:700; color:var(--color-on-surface-variant);">Date</label>
                     <input id="attendance-date" name="date" type="date" value="{{ $date->format('Y-m-d') }}"
                            style="height:38px; border-radius:0.5rem; border:1px solid var(--color-outline-variant); background:var(--color-surface); padding:0 0.75rem; color:var(--color-on-surface);">

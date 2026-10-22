@@ -1,6 +1,18 @@
-@extends('layouts.admin')
+@extends($isReadOnly ? 'layouts.role' : 'layouts.admin')
 
-@section('title', 'Modération des Publications Alumni')
+@section('title', $isReadOnly ? 'Alumni disponibles' : 'Modération des Publications Alumni')
+
+@if($isReadOnly)
+    @section('role_label', 'Direction')
+    @section('home_route', route('direction.dashboard'))
+    @section('nav_links')
+        <a href="{{ route('direction.dashboard') }}" style="text-decoration:none; font-weight:700; color:var(--color-on-surface-variant);">Dashboard</a>
+        <a href="{{ route('direction.students.index') }}" style="text-decoration:none; font-weight:700; color:var(--color-on-surface-variant);">Étudiants</a>
+        <a href="{{ route('direction.finance.index') }}" style="text-decoration:none; font-weight:700; color:var(--color-on-surface-variant);">Finances</a>
+        <a href="{{ route('direction.alumni-posts.index') }}" style="text-decoration:none; font-weight:700; color:var(--color-primary);">Alumni disponibles</a>
+        <a href="{{ route('contact.index') }}" style="text-decoration:none; font-weight:700; color:var(--color-on-surface-variant);">Contact</a>
+    @endsection
+@endif
 
 @section('content')
 
@@ -8,15 +20,17 @@
 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.75rem; flex-wrap:wrap; gap:1rem;">
     <div>
         <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
-            <a href="{{ route('admin.alumnis.index') }}" style="color:var(--color-primary); font-size:0.875rem; text-decoration:none; font-weight:600;">
-                ← Espace Alumni
-            </a>
+            @if(! $isReadOnly)
+                <a href="{{ route('admin.alumnis.index') }}" style="color:var(--color-primary); font-size:0.875rem; text-decoration:none; font-weight:600;">
+                    ← Espace Alumni
+                </a>
+            @endif
         </div>
         <h1 style="font-family:var(--font-display); font-size:1.75rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
-            Modération des Publications Alumni
+            {{ $isReadOnly ? 'Alumni disponibles' : 'Modération des Publications Alumni' }}
         </h1>
         <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
-            Validez, refusez ou suspendez les actualités, créations et réalisations soumises par les diplômés de l'IFAM.
+            {{ $isReadOnly ? 'Publications Alumni validées et visibles dans l’annuaire.' : 'Validez, refusez ou suspendez les actualités, créations et réalisations soumises par les diplômés de l’IFAM.' }}
         </p>
     </div>
 </div>
@@ -28,6 +42,7 @@
     </div>
 @endif
 
+@if(! $isReadOnly)
 {{-- Filtres par Statut --}}
 <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; border-bottom:1px solid var(--color-outline-variant); padding-bottom:0.5rem; flex-wrap:wrap;">
     <a href="{{ route('admin.alumnis.posts.index', ['status' => 'pending']) }}"
@@ -55,13 +70,14 @@
         Toutes ({{ $counts['all'] }})
     </a>
 </div>
+@endif
 
 {{-- Liste des publications --}}
 @if($posts->isEmpty())
     <div style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:3.5rem 1rem; text-align:center; color:var(--color-on-surface-variant);">
         <span class="material-symbols-outlined" style="font-size:56px; color:var(--color-outline); margin-bottom:0.75rem;">inbox</span>
         <p style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">Aucune publication dans cette catégorie</p>
-        <p style="font-size:0.875rem; margin:0;">Toutes les publications ont été traitées ou aucune n'a encore été soumise.</p>
+        <p style="font-size:0.875rem; margin:0;">{{ $isReadOnly ? 'Aucune publication Alumni validée et visible pour le moment.' : 'Toutes les publications ont été traitées ou aucune n’a encore été soumise.' }}</p>
     </div>
 @else
     <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:1.25rem;">
@@ -137,9 +153,9 @@
                         <span style="font-size:0.75rem; color:var(--color-on-surface-variant);">
                             {{ $post->created_at->format('d/m/Y à H:i') }}
                         </span>
-                        <a href="{{ route('admin.alumnis.posts.show', $post->id) }}"
+                        <a href="{{ $isReadOnly ? route('alumni.public.posts.show', $post->slug) : route('admin.alumnis.posts.show', $post->id) }}"
                            style="height:32px; padding:0 0.875rem; border-radius:0.5rem; background:var(--color-surface-container-high); color:var(--color-on-surface); font-size:0.8125rem; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:0.25rem;">
-                            Examiner
+                            {{ $isReadOnly ? 'Consulter' : 'Examiner' }}
                             <span class="material-symbols-outlined" style="font-size:16px;">arrow_forward</span>
                         </a>
                     </div>

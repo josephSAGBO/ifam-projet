@@ -18,8 +18,19 @@
         <h1 style="font-family:var(--font-display); font-size:1.5rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
             Dossier : {{ $student->full_name }}
         </h1>
-        <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
-            Complétez ou mettez à jour les informations spécifiques au profil étudiant.
+        <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+            <span>Complétez ou mettez à jour les informations spécifiques au profil étudiant.</span>
+            @php
+                $studentSites = $student->sites->concat($student->studentProfile?->enrollments->pluck('site')->filter() ?? collect())->unique('id');
+            @endphp
+            @if($studentSites->isNotEmpty())
+                <span>• Site(s) :</span>
+                @foreach($studentSites as $sSite)
+                    <span style="padding:0.15rem 0.45rem; border-radius:0.375rem; font-size:0.75rem; font-weight:600; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;">
+                        {{ $sSite->nom }}
+                    </span>
+                @endforeach
+            @endif
         </p>
     </div>
 </div>

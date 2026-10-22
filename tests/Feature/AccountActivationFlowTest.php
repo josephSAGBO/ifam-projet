@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Mail\ActivationMail;
 use App\Mail\PasswordResetMail;
+use App\Models\Site;
 use App\Models\User;
+use Database\Seeders\SiteSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -18,9 +20,14 @@ class AccountActivationFlowTest extends TestCase
 
     protected User $admin;
 
+    protected Site $site;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->seed(SiteSeeder::class);
+        $this->site = Site::where('nom', 'Cotonou')->firstOrFail();
 
         // Créer les rôles nécessaires
         Role::create(['name' => 'administrateur', 'guard_name' => 'web']);
@@ -51,6 +58,7 @@ class AccountActivationFlowTest extends TestCase
             'email' => 'alice.koffi@example.com',
             'role' => 'etudiant',
             'phone' => '+229 01 23 45 67',
+            'site_id' => $this->site->id,
         ]);
 
         $response->assertRedirect(route('admin.users.index'));
@@ -63,6 +71,7 @@ class AccountActivationFlowTest extends TestCase
         $this->assertNotNull($user->activation_expires_at);
         $this->assertTrue($user->hasRole('etudiant'));
         $this->assertNotNull($user->matricule);
+        $this->assertTrue($user->sites->contains('id', $this->site->id));
 
         Mail::assertSent(ActivationMail::class, function ($mail) use ($user) {
             return $mail->hasTo('alice.koffi@example.com') && $mail->token === $user->activation_token;
@@ -79,6 +88,7 @@ class AccountActivationFlowTest extends TestCase
             'last_name' => 'Admin',
             'email' => 'bob.admin@example.com',
             'role' => 'administrateur',
+            'site_id' => $this->site->id,
         ]);
         $resRole->assertSessionHasErrors(['role']);
 
@@ -88,6 +98,7 @@ class AccountActivationFlowTest extends TestCase
             'last_name' => 'Test',
             'email' => 'email-non-valide',
             'role' => 'etudiant',
+            'site_id' => $this->site->id,
         ]);
         $resEmail->assertSessionHasErrors(['email']);
 

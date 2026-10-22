@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Mail\ActivationMail;
 use App\Models\ParentProfile;
+use App\Models\Site;
 use App\Models\StudentProfile;
 use App\Models\TeacherProfile;
 use App\Models\User;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Spatie\Permission\Models\Role;
 
@@ -23,11 +25,65 @@ use Spatie\Permission\Models\Role;
  */
 class UserController extends Controller
 {
+    // ── Helper d'autorisation par site ──────────────────────────────────────
+
+    /**
+     * Vérifie si l'utilisateur connecté a le droit d'accéder au compte cible.
+     */
+    protected function authorizeUserAccess(User $targetUser): void
+    {
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+
+        // 1. SuperAdmin a accès à tous les comptes
+        if ($currentUser->hasRole('administrateur')) {
+            return;
+        }
+
+        // 2. Administrateur de site (responsable_site)
+        if ($currentUser->hasRole('responsable_site')) {
+            $managedSiteIds = $currentUser->sites()->pluck('sites.id')->all();
+
+            // Si le compte cible a un accès transversal ou direction, interdire l'édition par l'admin de site
+            if ($targetUser->hasAnyRole(['administrateur', 'direction']) || $targetUser->isDepartmentHead()) {
+                abort(403, 'Accès non autorisé à un compte transversal ou administrateur.');
+            }
+
+            // Vérifier si le compte cible partage au moins un des sites de l'admin
+            $targetSiteIds = $targetUser->sites()->pluck('sites.id')->all();
+            $commonSites = array_intersect($managedSiteIds, $targetSiteIds);
+
+            if (empty($commonSites)) {
+                abort(403, 'Accès refusé : cet utilisateur n\'appartient pas à votre site.');
+            }
+
+            return;
+        }
+
+        abort(403, 'Action non autorisée.');
+    }
+
     // ── Liste ──────────────────────────────────────────────────────────────
 
     public function index(Request $request)
     {
-        $query = User::with('roles')->orderByDesc('created_at');
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+        $isSuperAdmin = $currentUser->hasRole('administrateur');
+
+        $query = User::with(['roles', 'sites'])->orderByDesc('created_at');
+
+        // Scoping par site
+        if (! $isSuperAdmin) {
+            $managedSiteIds = $currentUser->sites()->pluck('sites.id')->all();
+            $query->whereHas('sites', function ($q) use ($managedSiteIds) {
+                $q->whereIn('sites.id', $managedSiteIds);
+            });
+        } elseif ($request->filled('site_id')) {
+            $query->whereHas('sites', function ($q) use ($request) {
+                $q->where('sites.id', $request->site_id);
+            });
+        }
 
         // Filtre par rôle
         if ($request->filled('role')) {
@@ -58,22 +114,56 @@ class UserController extends Controller
 
         $users = $query->paginate(20)->withQueryString();
         $roles = Role::orderBy('name')->get();
+        $sites = $isSuperAdmin ? Site::activeSites() : $currentUser->sites()->where('est_actif', true)->get();
 
-        return view('admin.users.index', compact('users', 'roles'));
+        return view('admin.users.index', compact('users', 'roles', 'sites', 'isSuperAdmin'));
     }
 
     // ── Créer ─────────────────────────────────────────────────────────────
 
     public function create()
     {
-        // Seuls ces 4 rôles peuvent être créés par l'administrateur (jamais Administrateur)
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+        $isSuperAdmin = $currentUser->hasRole('administrateur');
+
+        // Rôles autorisés à la création
         $roles = Role::whereIn('name', ['etudiant', 'enseignant', 'direction', 'parent'])->get();
 
-        return view('admin.users.create', compact('roles'));
+        if ($isSuperAdmin) {
+            $sites = Site::activeSites();
+            $defaultSiteId = Site::defaultActiveId();
+        } else {
+            $sites = $currentUser->sites()->where('est_actif', true)->get();
+            $defaultSiteId = $sites->first()?->id;
+        }
+
+        return view('admin.users.create', compact('roles', 'sites', 'isSuperAdmin', 'defaultSiteId'));
     }
 
     public function store(Request $request)
     {
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+        $isSuperAdmin = $currentUser->hasRole('administrateur');
+
+        // Imposition stricte du site côté serveur pour l'administrateur de site
+        if (! $isSuperAdmin) {
+            $managedSite = $currentUser->sites()->where('est_actif', true)->first();
+            if (! $managedSite) {
+                abort(403, 'Aucun site actif n\'est associé à votre compte administrateur.');
+            }
+            $targetSiteId = $managedSite->id;
+        } else {
+            $validatedSite = $request->validate([
+                'site_id' => ['required', Rule::exists('sites', 'id')->where('est_actif', true)],
+            ], [
+                'site_id.required' => 'Le site de rattachement est obligatoire.',
+                'site_id.exists' => 'Le site sélectionné n\'est pas valide ou est inactif.',
+            ]);
+            $targetSiteId = (int) $validatedSite['site_id'];
+        }
+
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
@@ -102,7 +192,7 @@ class UserController extends Controller
 
         $token = Str::random(64);
 
-        $user = DB::transaction(function () use ($validated, $token, $photoPath) {
+        $user = DB::transaction(function () use ($validated, $token, $photoPath, $targetSiteId) {
             $userData = [
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
@@ -111,7 +201,7 @@ class UserController extends Controller
                 'phone' => $validated['phone'] ?? null,
                 'email' => strtolower(trim($validated['email'])),
                 'photo_path' => $photoPath,
-                'password' => null, // Aucun mot de passe défini à la création
+                'password' => null,
                 'activation_token' => $token,
                 'activation_expires_at' => now()->addHours(48),
                 'is_active' => true,
@@ -126,6 +216,9 @@ class UserController extends Controller
 
             $newUser = User::create($userData);
             $newUser->assignRole($validated['role']);
+
+            // Rattachement unique au site
+            $newUser->sites()->sync([$targetSiteId]);
 
             // Création des profils associés
             if ($validated['role'] === 'etudiant') {
@@ -162,7 +255,9 @@ class UserController extends Controller
 
     public function show(User $user)
     {
-        $user->load(['roles', 'creator', 'studentProfile', 'teacherProfile']);
+        $this->authorizeUserAccess($user);
+
+        $user->load(['roles', 'creator', 'studentProfile', 'teacherProfile', 'sites']);
 
         return view('admin.users.show', compact('user'));
     }
@@ -171,39 +266,57 @@ class UserController extends Controller
 
     public function edit(User $user)
     {
-        $roles = Role::whereIn('name', ['etudiant', 'enseignant', 'direction', 'parent'])->get();
-        $user->load('roles');
+        $this->authorizeUserAccess($user);
 
-        return view('admin.users.edit', compact('user', 'roles'));
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+        $isSuperAdmin = $currentUser->hasRole('administrateur');
+
+        $roles = Role::whereIn('name', ['etudiant', 'enseignant', 'direction', 'parent'])->get();
+        $user->load(['roles', 'sites']);
+
+        $sites = $isSuperAdmin ? Site::activeSites() : $currentUser->sites()->where('est_actif', true)->get();
+
+        return view('admin.users.edit', compact('user', 'roles', 'sites', 'isSuperAdmin'));
     }
 
     public function update(Request $request, User $user)
     {
+        $this->authorizeUserAccess($user);
+
+        /** @var User $currentUser */
+        $currentUser = auth()->user();
+        $isSuperAdmin = $currentUser->hasRole('administrateur');
+
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
             'gender' => ['nullable', 'in:M,F,autre'],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'phone' => ['nullable', 'string', 'max:20'],
-            // 'email'      => ['required', 'email:rfc,dns', "unique:users,email,{$user->id}"],
             'is_active' => ['boolean'],
             'photo' => ['nullable', 'image', 'max:2048'],
+            'site_id' => [$isSuperAdmin ? 'required' : 'nullable', Rule::exists('sites', 'id')->where('est_actif', true)],
         ], [
             'first_name.required' => 'Le prénom est obligatoire.',
             'last_name.required' => 'Le nom de famille est obligatoire.',
-            'email.required' => 'L\'adresse email est obligatoire.',
-            'email.email' => 'Veuillez saisir une adresse email valide.',
-            'email.unique' => 'Cette adresse email est déjà utilisée.',
+            'site_id.required' => 'Le site de rattachement est obligatoire.',
+            'site_id.exists' => 'Le site sélectionné n\'est pas valide.',
         ]);
 
         if ($request->hasFile('photo')) {
-            // Supprimer l'ancienne photo si elle existe
             if ($user->photo_path && Storage::disk('public')->exists($user->photo_path)) {
                 Storage::disk('public')->delete($user->photo_path);
             }
             $validated['photo_path'] = $request->file('photo')->store('photos', 'public');
         }
 
+        // Modification du site autorisée UNIQUEMENT pour le SuperAdmin
+        if ($isSuperAdmin && $request->filled('site_id')) {
+            $user->sites()->sync([(int) $request->site_id]);
+        }
+
+        unset($validated['site_id']);
         $user->update($validated);
 
         // Réinitialisation du mot de passe directe par l'admin (optionnel)
@@ -225,6 +338,8 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
+        $this->authorizeUserAccess($user);
+
         if ($user->id === auth()->id()) {
             return back()->with('error', 'Vous ne pouvez pas désactiver votre propre compte.');
         }
@@ -239,6 +354,8 @@ class UserController extends Controller
 
     public function activate(User $user)
     {
+        $this->authorizeUserAccess($user);
+
         $user->update(['is_active' => true]);
 
         return back()->with('success', "Le compte de {$user->full_name} a été réactivé.");
@@ -248,6 +365,8 @@ class UserController extends Controller
 
     public function resendActivation(User $user)
     {
+        $this->authorizeUserAccess($user);
+
         if (! $user->email) {
             return back()->with('error', 'Cet utilisateur ne possède pas d\'adresse email.');
         }
@@ -264,6 +383,7 @@ class UserController extends Controller
             'direction' => 'Membre de la Direction',
             'parent' => 'Parent d\'élève',
             'administrateur' => 'Administrateur',
+            'responsable_site' => 'Administrateur de site',
         ];
         $roleLabel = $roleLabels[$roleName] ?? ucfirst($roleName);
 

@@ -28,6 +28,7 @@
 {{-- Filtres et Recherche --}}
 <div style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; margin-bottom:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
     <form method="GET" action="{{ route('admin.enrollments.index') }}" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) 120px; gap:1rem; align-items:end;">
+        @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
         <div>
             <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem;">Rechercher un étudiant</label>
             <input type="text" name="search" value="{{ request('search') }}" placeholder="Nom, prénom, matricule…"

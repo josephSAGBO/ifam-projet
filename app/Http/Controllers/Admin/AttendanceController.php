@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\HasSiteFilter;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicSession;
 use App\Models\Attendance;
@@ -14,17 +15,51 @@ use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
+    use HasSiteFilter;
+
+    /**
+     * IDs des sites gérés par l'utilisateur courant.
+     * null = accès global ; tableau = périmètre restreint.
+     *
+     * @return int[]|null
+     */
+    protected function managedSiteIds(): ?array
+    {
+        $user = auth()->user();
+
+        if ($user && $user->hasAnyRole(['administrateur', 'direction', 'direction_daa'])) {
+            return null; // accès global
+        }
+
+        return $user ? $user->sites()->pluck('sites.id')->all() : [];
+    }
+
     /**
      * Display a listing of courses to take attendance for.
      */
     public function index(Request $request)
     {
-        $sessions = AcademicSession::orderByDesc('start_date')->get();
+        ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
+        $managed = $this->managedSiteIds();
+        $sessionsQuery = AcademicSession::orderByDesc('start_date');
+        if ($managed !== null) {
+            $sessionsQuery->whereIn('site_id', $managed);
+        }
+        if ($selectedSiteId !== null) {
+            $sessionsQuery->where('site_id', $selectedSiteId);
+        }
+        $sessions = $sessionsQuery->get();
+
         $selectedSessionId = $request->integer('session_id') ?: null;
+        if ($selectedSessionId && ! $sessions->contains('id', $selectedSessionId)) {
+            $selectedSessionId = null;
+        }
         $selectedFormationId = $request->integer('formation_id') ?: null;
         $selectedCourseId = $request->integer('course_id') ?: null;
 
         $coursesQuery = Course::with(['module', 'formation', 'academicSession', 'enseignant.user', 'teacherProfile.user'])
+            ->when($managed !== null, fn ($query) => $query->whereHas('academicSession', fn ($sq) => $sq->whereIn('site_id', $managed)))
+            ->when($selectedSiteId !== null, fn ($query) => $query->whereHas('academicSession', fn ($sq) => $sq->where('site_id', $selectedSiteId)))
             ->when($selectedSessionId, fn ($query) => $query->where('academic_session_id', $selectedSessionId))
             ->when($selectedFormationId, fn ($query) => $query->where('formation_id', $selectedFormationId));
 
@@ -77,6 +112,8 @@ class AttendanceController extends Controller
             'selectedSessionId',
             'selectedFormationId',
             'selectedCourseId',
+            'sites',
+            'selectedSiteId',
             'course',
             'students',
             'attendances',
@@ -87,6 +124,15 @@ class AttendanceController extends Controller
 
     public function updateSheetStatus(Request $request, Course $course): RedirectResponse
     {
+        $managed = $this->managedSiteIds();
+        if ($managed !== null) {
+            $course->loadMissing('academicSession');
+            $siteId = $course->academicSession?->site_id;
+            if ($siteId !== null && ! in_array($siteId, $managed, true)) {
+                abort(403, 'Accès refusé : ce cours appartient à un autre site.');
+            }
+        }
+
         $validated = $request->validate([
             'date' => 'required|date_format:Y-m-d',
             'statut' => 'required|in:ouverte,cloturee',
@@ -119,6 +165,15 @@ class AttendanceController extends Controller
      */
     public function show(Request $request, Course $course)
     {
+        $managed = $this->managedSiteIds();
+        if ($managed !== null) {
+            $course->loadMissing('academicSession');
+            $siteId = $course->academicSession?->site_id;
+            if ($siteId !== null && ! in_array($siteId, $managed, true)) {
+                abort(403, 'Accès refusé : ce cours appartient à un autre site.');
+            }
+        }
+
         $dateStr = $request->input('date', date('Y-m-d'));
         try {
             $date = Carbon::parse($dateStr);

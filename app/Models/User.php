@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -158,6 +159,116 @@ class User extends Authenticatable
             ->exists();
     }
 
+    /**
+     * Profils de service accessibles à l'utilisateur (par assignments ou par rôles).
+     *
+     * @return Collection<int, ServiceProfile>
+     */
+    public function accessibleServiceProfiles(): Collection
+    {
+        // 1. Profils issus des assignations explicites
+        $assignedIds = $this->assignments()->pluck('service_profile_id')->all();
+
+        // 2. Profils déduits des rôles détenus
+        $roleCodes = [];
+
+        if ($this->hasAnyRole(['administrateur', 'direction', 'responsable_site'])) {
+            return ServiceProfile::active()->get();
+        }
+
+        if ($this->hasRole('direction_daf')) {
+            $roleCodes = array_merge($roleCodes, ['administratif', 'financier', 'gestion_stocks', 'maintenance_logistique']);
+        }
+
+        if ($this->hasRole('responsable_administratif_financier')) {
+            $roleCodes = array_merge($roleCodes, ['administratif', 'financier']);
+        }
+
+        if ($this->hasAnyRole(['responsable_administratif', 'secretaire_administratif', 'charge_scolarite', 'agent_administratif'])) {
+            $roleCodes[] = 'administratif';
+        }
+
+        if ($this->hasAnyRole(['responsable_financier', 'comptable', 'caissier', 'agent_recouvrement'])) {
+            $roleCodes[] = 'financier';
+        }
+
+        if ($this->hasRole('direction_daa')) {
+            $roleCodes = array_merge($roleCodes, ['pedagogie_etudes', 'insertion_professionnelle']);
+        }
+
+        if ($this->hasRole('responsable_daa')) {
+            $roleCodes = array_merge($roleCodes, ['pedagogie_etudes', 'insertion_professionnelle']);
+        }
+
+        if ($this->hasRole('responsable_etudes')) {
+            $roleCodes[] = 'pedagogie_etudes';
+        }
+
+        if ($this->hasRole('responsable_insertion')) {
+            $roleCodes[] = 'insertion_professionnelle';
+        }
+
+        $query = ServiceProfile::active();
+        if (empty($assignedIds) && empty($roleCodes)) {
+            return $query->whereRaw('1 = 0')->get();
+        }
+
+        return $query->where(function ($q) use ($assignedIds, $roleCodes) {
+            if (! empty($assignedIds)) {
+                $q->whereIn('id', $assignedIds);
+            }
+            if (! empty($roleCodes)) {
+                $q->orWhereIn('code', array_unique($roleCodes));
+            }
+        })->get();
+    }
+
+    /**
+     * Vérifie si l'utilisateur a le niveau responsable pour un service donné.
+     */
+    public function isServiceResponsable(ServiceProfile|int|string $service): bool
+    {
+        if ($this->hasAnyRole(['administrateur', 'direction', 'responsable_site'])) {
+            return true;
+        }
+
+        $serviceModel = is_numeric($service)
+            ? ServiceProfile::find($service)
+            : ($service instanceof ServiceProfile ? $service : ServiceProfile::where('code', $service)->first());
+
+        if (! $serviceModel) {
+            return false;
+        }
+
+        // Vérifier via user_assignments
+        $hasAssignment = $this->assignments()
+            ->where('service_profile_id', $serviceModel->id)
+            ->where('level', 'responsable')
+            ->exists();
+
+        if ($hasAssignment) {
+            return true;
+        }
+
+        // Vérifier via les rôles métiers
+        return match ($serviceModel->code) {
+            'administratif' => $this->hasAnyRole(['responsable_administratif', 'responsable_administratif_financier', 'direction_daf']),
+            'financier' => $this->hasAnyRole(['responsable_financier', 'responsable_administratif_financier', 'direction_daf']),
+            'pedagogie_etudes' => $this->hasAnyRole(['responsable_etudes', 'responsable_daa', 'direction_daa']),
+            'insertion_professionnelle' => $this->hasAnyRole(['responsable_insertion', 'responsable_daa', 'direction_daa']),
+            'gestion_stocks', 'maintenance_logistique' => $this->hasAnyRole(['direction_daf']),
+            default => false,
+        };
+    }
+
+    /**
+     * L'utilisateur peut-il accéder au module des rapports de service ?
+     */
+    public function canAccessServiceReports(): bool
+    {
+        return $this->accessibleServiceProfiles()->isNotEmpty();
+    }
+
     public function isSiteManager(?int $siteId = null): bool
     {
         if (! $this->hasRole('responsable_site')) {
@@ -175,8 +286,8 @@ class User extends Authenticatable
     {
         $siteId = $site instanceof Site ? $site->id : $site;
 
-        // Direction Générale and system administrators have global vision
-        if ($this->hasAnyRole(['direction', 'administrateur'])) {
+        // Direction Générale, DG DAF, DG DAA and system administrators have global vision
+        if ($this->hasAnyRole(['direction', 'administrateur', 'direction_daf', 'direction_daa'])) {
             return true;
         }
 
@@ -188,6 +299,18 @@ class User extends Authenticatable
         // User assigned to this site or assigned globally
         return $this->sites()->where('sites.id', $siteId)->exists()
             || $this->assignments()->where(fn ($q) => $q->whereNull('site_id')->orWhere('site_id', $siteId))->exists();
+    }
+
+    /**
+     * @return array<int>
+     */
+    public function accessibleSiteIds(): array
+    {
+        if ($this->hasAnyRole(['direction', 'administrateur', 'direction_daf', 'direction_daa'])) {
+            return Site::pluck('id')->all();
+        }
+
+        return $this->sites()->pluck('sites.id')->all();
     }
 
     public function etudiants(): BelongsToMany

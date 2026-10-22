@@ -18,6 +18,7 @@
 {{-- Filters --}}
 <div style="background:var(--color-surface-container-low); padding:1rem 1.5rem; border-radius:1rem; margin-bottom:1.5rem;">
     <form action="{{ route('admin.documents.index') }}" method="GET" style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap;">
+        @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
         <div>
             <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem;">Type</label>
             <select name="type" onchange="this.form.submit()" style="height:38px; padding:0 1rem; border-radius:0.5rem; border:1px solid var(--color-outline-variant); background:var(--color-surface-container-lowest); font-size:0.875rem;">

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\HasSiteFilter;
 use App\Http\Controllers\Controller;
 use App\Models\Alumni;
 use App\Models\AlumniPost;
 use App\Models\Formation;
 use App\Models\StudentProfile;
+use App\Models\User;
 use App\Services\AlumniEligibilityService;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
@@ -15,13 +17,54 @@ use Illuminate\Support\Facades\Storage;
 
 class AlumniController extends Controller
 {
+    use HasSiteFilter;
+
     public function __construct(
         protected AlumniEligibilityService $eligibilityService,
         protected NotificationService $notificationService
     ) {}
 
+    /**
+     * IDs des sites gérés par l'utilisateur courant.
+     * null = accès global ; tableau = périmètre restreint.
+     *
+     * @return int[]|null
+     */
+    protected function managedSiteIds(): ?array
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        if ($user->hasAnyRole(['administrateur', 'direction', 'direction_daa'])) {
+            return null; // accès global
+        }
+
+        return $user->sites()->pluck('sites.id')->all();
+    }
+
+    /**
+     * Contrôle strict d'accès à un Alumni par site.
+     */
+    protected function authorizeAlumniAccess(Alumni $alumni): void
+    {
+        $managed = $this->managedSiteIds();
+
+        if ($managed === null) {
+            return;
+        }
+
+        if (empty($managed)) {
+            abort(403, 'Accès refusé : vous n\'avez aucun site attribué.');
+        }
+
+        if ($alumni->site_id !== null && ! in_array($alumni->site_id, $managed, true)) {
+            abort(403, 'Accès refusé : cet alumni appartient à un autre site.');
+        }
+    }
+
     public function index(Request $request)
     {
+        ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
         $tab = $request->input('tab', 'registered'); // 'registered' ou 'candidates'
         $search = $request->input('search');
         $formationId = $request->input('formation_id');
@@ -29,6 +72,15 @@ class AlumniController extends Controller
         $approval = $request->input('approval');
 
         $query = Alumni::with(['formation', 'studentProfile.user', 'posts']);
+
+        // Scoping multi-sites : les rôles à périmètre restreint ne voient que leurs sites
+        $managed = $this->managedSiteIds();
+        if ($managed !== null) {
+            $query->whereIn('site_id', $managed);
+        }
+        if ($selectedSiteId !== null) {
+            $query->where('site_id', $selectedSiteId);
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -64,6 +116,13 @@ class AlumniController extends Controller
 
         // Étudiants éligibles à la diplomation
         $eligibleCandidates = $this->eligibilityService->getEligibleCandidates();
+        if ($selectedSiteId !== null) {
+            $eligibleCandidates = $eligibleCandidates
+                ->filter(fn (StudentProfile $profile) => $profile->enrollments->contains(
+                    fn ($enrollment) => (int) $enrollment->site_id === $selectedSiteId && $enrollment->status === 'completed'
+                ))
+                ->values();
+        }
 
         $pendingPostsCount = AlumniPost::where('status', 'pending')->count();
 
@@ -85,7 +144,9 @@ class AlumniController extends Controller
             'statutsPro',
             'eligibleCandidates',
             'pendingPostsCount',
-            'tab'
+            'tab',
+            'sites',
+            'selectedSiteId'
         ));
     }
 
@@ -197,6 +258,7 @@ class AlumniController extends Controller
 
     public function show(Alumni $alumni)
     {
+        $this->authorizeAlumniAccess($alumni);
         $alumni->load(['formation', 'studentProfile.user', 'posts.media', 'posts.validator']);
 
         return view('admin.alumnis.show', compact('alumni'));
@@ -204,6 +266,7 @@ class AlumniController extends Controller
 
     public function edit(Alumni $alumni)
     {
+        $this->authorizeAlumniAccess($alumni);
         $formations = Formation::orderBy('name')->get();
         $eligibleStudents = $this->eligibilityService->getEligibleCandidates();
 
@@ -220,6 +283,7 @@ class AlumniController extends Controller
 
     public function update(Request $request, Alumni $alumni)
     {
+        $this->authorizeAlumniAccess($alumni);
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
@@ -260,6 +324,7 @@ class AlumniController extends Controller
 
     public function toggleApproval(Alumni $alumni)
     {
+        $this->authorizeAlumniAccess($alumni);
         $alumni->update(['is_approved' => ! $alumni->is_approved]);
 
         $message = $alumni->is_approved ? 'Profil Alumni approuvé.' : 'Approbation retirée.';
@@ -269,6 +334,7 @@ class AlumniController extends Controller
 
     public function toggleDirectory(Alumni $alumni)
     {
+        $this->authorizeAlumniAccess($alumni);
         $alumni->update(['is_visible_directory' => ! $alumni->is_visible_directory]);
 
         $message = $alumni->is_visible_directory ? 'Profil rendu visible dans l\'annuaire public.' : 'Profil masqué de l\'annuaire public.';
@@ -278,6 +344,7 @@ class AlumniController extends Controller
 
     public function destroy(Alumni $alumni)
     {
+        $this->authorizeAlumniAccess($alumni);
         if ($alumni->photo_path && Storage::disk('public')->exists($alumni->photo_path)) {
             Storage::disk('public')->delete($alumni->photo_path);
         }

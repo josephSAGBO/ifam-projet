@@ -12,8 +12,12 @@ use App\Models\Formation;
 use App\Models\Grade;
 use App\Models\Notification;
 use App\Models\Payment;
+use App\Models\ServiceProfile;
+use App\Models\ServiceReport;
+use App\Models\Site;
 use App\Models\StudentProfile;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -155,7 +159,9 @@ class NotificationService
         $notifications = collect();
         $moduleNom = $course->module->name ?? 'Cours';
         $salleNom = $course->room->name ?? 'Salle non assignée';
-        $horaire = "le {$course->date} de {$course->start_time} à {$course->end_time}";
+        $horaire = $course->date
+            ? 'le '.$course->date->format('d/m/Y').($course->heure_debut ? ' de '.$course->heure_debut.' à '.($course->heure_fin ?? '?') : '')
+            : 'à une date non définie';
 
         $titre = $action === 'nouveau' ? 'Nouveau cours planifié' : 'Modification de cours (horaire/salle)';
         $message = "Le cours de « {$moduleNom} » est programmé {$horaire} en salle {$salleNom}.";
@@ -374,6 +380,281 @@ class NotificationService
         );
     }
 
+    /**
+     * Événement Rapport 1 : Rapport de service envoyé vers la Direction.
+     */
+    public function rapportEnvoye(ServiceReport $report, ?int $sentBy = null): Collection
+    {
+        $directionUsers = User::role('direction')->get();
+        $notifications = collect();
+
+        foreach ($directionUsers as $user) {
+            $notifications->push($this->envoyer(
+                $user,
+                "Nouveau rapport : {$report->serviceProfile->name}",
+                "Le rapport {$report->type} pour la période du {$report->periode_debut->format('d/m/Y')} au {$report->periode_fin->format('d/m/Y')} a été transmis par {$report->auteur->name}.",
+                'report',
+                'assignment',
+                route('direction.reports.show', $report),
+                $sentBy ?? auth()->id()
+            ));
+        }
+
+        return $notifications;
+    }
+
+    /**
+     * Événement Rapport 2 : Rapport retourné pour correction vers le responsable du service.
+     */
+    public function rapportRetourne(ServiceReport $report, ?int $sentBy = null): Collection
+    {
+        // Responsables du service et auteur
+        $responsables = User::whereHas('assignments', function ($q) use ($report) {
+            $q->where('service_profile_id', $report->service_profile_id)
+                ->where('level', 'responsable');
+        })->get();
+
+        $destinataires = $responsables->push($report->auteur)->unique('id');
+        $notifications = collect();
+
+        foreach ($destinataires as $user) {
+            $notifications->push($this->envoyer(
+                $user,
+                'Rapport retourné pour correction',
+                "Le rapport « {$report->titre} » a été retourné par la Direction. Commentaire : {$report->commentaire_direction}",
+                'warning',
+                'assignment_late',
+                route('service.reports.edit', $report),
+                $sentBy ?? auth()->id()
+            ));
+        }
+
+        return $notifications;
+    }
+
+    /**
+     * Événement Rapport 3 : Rappel d'échéance à J-2 pour le responsable du service.
+     */
+    public function rappelEcheanceRapport(
+        ServiceProfile $service,
+        string $type,
+        CarbonInterface $periodeDebut,
+        CarbonInterface $periodeFin,
+        CarbonInterface $echeance,
+        ?Site $site = null
+    ): Collection {
+        $query = User::whereHas('assignments', function ($q) use ($service, $site) {
+            $q->where('service_profile_id', $service->id)
+                ->where('level', 'responsable');
+            if ($site !== null) {
+                $q->where(fn ($sq) => $sq->whereNull('site_id')->orWhere('site_id', $site->id));
+            }
+        });
+
+        $responsables = $query->get();
+        $notifications = collect();
+        $siteLabel = $site ? " ({$site->nom})" : '';
+
+        foreach ($responsables as $user) {
+            $notifications->push($this->envoyer(
+                $user,
+                "Rappel d'échéance : rapport {$type}",
+                "Le rapport {$type} du service {$service->name}{$siteLabel} doit être transmis avant le {$echeance->format('d/m/Y')}.",
+                'report',
+                'schedule',
+                route('service.reports.create'),
+                null
+            ));
+        }
+
+        return $notifications;
+    }
+
+    /**
+     * Événement Rapport 4 : Rapport en retard notifié à la Direction.
+     */
+    public function rapportEnRetard(
+        ServiceProfile $service,
+        string $type,
+        CarbonInterface $periodeDebut,
+        CarbonInterface $periodeFin,
+        ?Site $site = null
+    ): Collection {
+        $directionUsers = User::role('direction')->get();
+        $notifications = collect();
+        $siteLabel = $site ? " ({$site->nom})" : '';
+
+        foreach ($directionUsers as $user) {
+            $notifications->push($this->envoyer(
+                $user,
+                "Rapport en retard : {$service->name}{$siteLabel}",
+                "Le rapport {$type} pour la période du {$periodeDebut->format('d/m/Y')} au {$periodeFin->format('d/m/Y')} n'a pas été transmis dans les délais.",
+                'warning',
+                'warning',
+                route('direction.reports.missing'),
+                null
+            ));
+        }
+
+        return $notifications;
+    }
+
+    /**
+     * Méthode centralisée : résout les destinataires depuis le catalogue config/notification_events.php,
+     * exclut l'auteur de l'action, déduplique, puis insère en une seule requête.
+     *
+     * @param  string  $evenement  Clé du catalogue (ex: 'paiement_enregistre')
+     * @param  array{
+     *     user_ids?:      int[],
+     *     site_id?:       int|null,
+     *     service_code?:  string|null,
+     *     link?:          string|null,
+     *     placeholders?:  array<string,string>,
+     *     auteur_id?:     int|null,
+     * } $contexte
+     */
+    public function notifierEvenement(string $evenement, array $contexte = []): void
+    {
+        $catalogue = config("notification_events.events.{$evenement}");
+        if (! $catalogue) {
+            return;
+        }
+
+        $type = $catalogue['type'] ?? 'info';
+        $icon = $catalogue['icon'] ?? $this->defaultIcon($type);
+        $link = $contexte['link'] ?? null;
+        $siteId = $contexte['site_id'] ?? null;
+        $auteurId = $contexte['auteur_id'] ?? auth()->id();
+        $placeholders = $contexte['placeholders'] ?? [];
+
+        $title = $this->interpolate($catalogue['title'], $placeholders);
+        $message = $this->interpolate($catalogue['message'], $placeholders);
+
+        $destinataires = $contexte['user_ids'] ?? [];
+
+        $recipientDef = $catalogue['recipients'] ?? [];
+
+        // Destinataires par rôle
+        if (! empty($recipientDef['roles'])) {
+            $query = User::role($recipientDef['roles'])->where('is_active', true);
+            if (! empty($recipientDef['scoped_by_site']) && $siteId !== null) {
+                $query->where(function ($sq) use ($siteId) {
+                    $sq->whereHas('assignments', fn ($q) => $q->where('site_id', $siteId)->orWhereNull('site_id'))
+                        ->orWhereHas('sites', fn ($q) => $q->where('sites.id', $siteId))
+                        ->orDoesntHave('sites');
+                });
+            }
+            $destinataires = array_merge($destinataires, $query->pluck('id')->all());
+        }
+
+        // Destinataires par service (via user_assignments OU rôles métiers rattachés au service)
+        $serviceCode = $contexte['service_code'] ?? null;
+        if ($serviceCode !== null) {
+            $levels = $recipientDef['levels'] ?? null;
+
+            // 1. Via user_assignments
+            $queryAssignments = User::whereHas('assignments', function ($q) use ($serviceCode, $siteId, $levels, $recipientDef) {
+                $q->whereHas('serviceProfile', fn ($sq) => $sq->where('code', $serviceCode));
+                if ($levels) {
+                    $q->whereIn('level', (array) $levels);
+                }
+                if (! empty($recipientDef['scoped_by_site']) && $siteId !== null) {
+                    $q->where(fn ($sq) => $sq->whereNull('site_id')->orWhere('site_id', $siteId));
+                }
+            })->where('is_active', true);
+            $destinataires = array_merge($destinataires, $queryAssignments->pluck('id')->all());
+
+            // 2. Via rôles métiers associés
+            $serviceRolesMap = [
+                'pedagogie_etudes' => [
+                    'responsable' => ['responsable_etudes', 'responsable_daa', 'direction_daa', 'responsable_site'],
+                    'agent' => ['enseignant'],
+                ],
+                'insertion_professionnelle' => [
+                    'responsable' => ['responsable_insertion', 'responsable_daa', 'direction_daa', 'responsable_site'],
+                    'agent' => [],
+                ],
+                'administratif' => [
+                    'responsable' => ['responsable_administratif', 'responsable_administratif_financier', 'direction_daf', 'responsable_site'],
+                    'agent' => ['secretaire_administratif', 'charge_scolarite', 'agent_administratif'],
+                ],
+                'financier' => [
+                    'responsable' => ['responsable_financier', 'responsable_administratif_financier', 'direction_daf', 'responsable_site'],
+                    'agent' => ['comptable', 'caissier', 'agent_recouvrement'],
+                ],
+            ];
+
+            $rolesForService = [];
+            if (isset($serviceRolesMap[$serviceCode])) {
+                if ($levels) {
+                    foreach ((array) $levels as $lvl) {
+                        $rolesForService = array_merge($rolesForService, $serviceRolesMap[$serviceCode][$lvl] ?? []);
+                    }
+                } else {
+                    $rolesForService = array_merge(
+                        $serviceRolesMap[$serviceCode]['responsable'] ?? [],
+                        $serviceRolesMap[$serviceCode]['agent'] ?? []
+                    );
+                }
+            }
+
+            if (! empty($rolesForService)) {
+                $queryRoles = User::role(array_unique($rolesForService))->where('is_active', true);
+                if (! empty($recipientDef['scoped_by_site']) && $siteId !== null) {
+                    $queryRoles->where(function ($sq) use ($siteId) {
+                        $sq->whereHas('assignments', fn ($q) => $q->where('site_id', $siteId)->orWhereNull('site_id'))
+                            ->orWhereHas('sites', fn ($q) => $q->where('sites.id', $siteId))
+                            ->orDoesntHave('sites');
+                    });
+                }
+                $destinataires = array_merge($destinataires, $queryRoles->pluck('id')->all());
+            }
+        }
+
+        // Dédupliquer et exclure l'auteur
+        $destinataires = array_unique($destinataires);
+        if ($auteurId !== null) {
+            $destinataires = array_filter($destinataires, fn ($id) => $id !== $auteurId);
+        }
+
+        if (empty($destinataires)) {
+            return;
+        }
+
+        $now = now()->toDateTimeString();
+        $rows = [];
+        foreach ($destinataires as $userId) {
+            $rows[] = [
+                'user_id' => $userId,
+                'sent_by' => $auteurId,
+                'title' => $title,
+                'message' => $message,
+                'type' => $type,
+                'icon' => $icon,
+                'link' => $link,
+                'read_at' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        Notification::insert($rows);
+    }
+
+    /**
+     * Interpole les {placeholders} dans un modèle de texte.
+     *
+     * @param  array<string,string>  $placeholders
+     */
+    private function interpolate(string $template, array $placeholders): string
+    {
+        foreach ($placeholders as $key => $value) {
+            $template = str_replace('{'.$key.'}', (string) $value, $template);
+        }
+
+        return $template;
+    }
+
     private function defaultIcon(string $type): string
     {
         return match ($type) {
@@ -385,6 +666,7 @@ class NotificationService
             'payment_reminder' => 'warning',
             'enrollment' => 'how_to_reg',
             'alumni' => 'workspace_premium',
+            'report' => 'assignment',
             default => 'notifications',
         };
     }

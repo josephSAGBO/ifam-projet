@@ -79,6 +79,14 @@
     </a>
 </div>
 
+<form method="GET" action="{{ route('admin.alumnis.index') }}" style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:1.5rem;">
+    <input type="hidden" name="tab" value="{{ $tab }}">
+    @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
+    @if($sites->isNotEmpty())
+        <button type="submit" style="height:40px; padding:0 1rem; border:0; border-radius:0.5rem; background:var(--color-primary-container); color:var(--color-on-primary); font-weight:700;">Filtrer</button>
+    @endif
+</form>
+
 @if($tab === 'candidates')
     {{-- Onglet : Candidats éligibles détectés par le système --}}
     <div style="background:var(--color-surface-container-lowest); border-radius:1rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); padding:1.5rem;">
@@ -139,7 +147,7 @@
                                     {{ $candidateUser?->matricule ?? '—' }}
                                 </td>
                                 <td style="padding:1rem;">
-                                    @foreach($candidate->enrollments->where('status', 'completed') as $enr)
+                                    @foreach($candidate->enrollments->where('status', 'completed')->when($selectedSiteId, fn ($enrollments) => $enrollments->where('site_id', $selectedSiteId)) as $enr)
                                         <div style="margin-bottom:0.25rem;">
                                             <span style="font-weight:600; color:var(--color-on-surface);">{{ $enr->formation->name }}</span>
                                             @if($enr->formation->parcours)

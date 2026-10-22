@@ -21,18 +21,25 @@ class DashboardController extends Controller
             $q->where('enseignant_id', $teacherId)
                 ->orWhere('teacher_profile_id', $teacherId);
         })
+            ->when($teacherId, fn ($query) => $query->notHiddenFromTeacher($teacherId))
+            ->whereHas('academicSession', fn ($query) => $query->where('status', '!=', 'terminee'))
             ->with('module', 'formation')
             ->limit(10)
             ->get();
 
-        $myEvaluations = Evaluation::whereHas('course', function ($q) use ($teacherId) {
-            $q->where('enseignant_id', $teacherId)
-                ->orWhere('teacher_profile_id', $teacherId);
+        $myEvaluations = Evaluation::where(function ($query) use ($teacherId) {
+            $query->whereHas('course', function ($courseQuery) use ($teacherId) {
+                $courseQuery->where(function ($assignment) use ($teacherId) {
+                    $assignment->where('enseignant_id', $teacherId)
+                        ->orWhere('teacher_profile_id', $teacherId);
+                })
+                    ->when($teacherId, fn ($query) => $query->notHiddenFromTeacher($teacherId))
+                    ->whereHas('academicSession', fn ($session) => $session->where('status', '!=', 'terminee'));
+            })->orWhere(function ($createdEvaluations) {
+                $createdEvaluations->where('created_by', auth()->id())
+                    ->whereNull('cours_id');
+            });
         })
-            ->orWhere(function ($q) {
-                // Évaluations créées par l'enseignant
-                $q->where('created_by', auth()->id());
-            })
             ->with(['course.module', 'module'])
             ->orderByDesc('date')
             ->limit(5)
@@ -40,8 +47,11 @@ class DashboardController extends Controller
 
         $todayAttendance = Attendance::whereDate('date', today())
             ->whereHas('course', function ($q) use ($teacherId) {
-                $q->where('enseignant_id', $teacherId)
-                    ->orWhere('teacher_profile_id', $teacherId);
+                $q->where(function ($assignment) use ($teacherId) {
+                    $assignment->where('enseignant_id', $teacherId)
+                        ->orWhere('teacher_profile_id', $teacherId);
+                })->when($teacherId, fn ($courseQuery) => $courseQuery->notHiddenFromTeacher($teacherId))
+                    ->whereHas('academicSession', fn ($session) => $session->where('status', '!=', 'terminee'));
             })
             ->count();
 

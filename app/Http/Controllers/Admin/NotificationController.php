@@ -76,9 +76,22 @@ class NotificationController extends Controller
 
     public function markRead(Notification $notification)
     {
+        abort_unless($notification->user_id === auth()->id(), 403);
         $notification->markAsRead();
 
         return back();
+    }
+
+    public function markReadAndRedirect(Notification $notification)
+    {
+        abort_unless($notification->user_id === auth()->id(), 403);
+        $notification->markAsRead();
+
+        if ($notification->link) {
+            return redirect()->away($notification->link);
+        }
+
+        return redirect()->route('admin.notifications.index');
     }
 
     public function markAllRead()
@@ -92,6 +105,7 @@ class NotificationController extends Controller
 
     public function destroy(Notification $notification)
     {
+        abort_unless($notification->user_id === auth()->id(), 403);
         $notification->delete();
 
         return back()->with('success', 'Notification supprimée.');

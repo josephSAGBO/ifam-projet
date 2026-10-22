@@ -1,0 +1,192 @@
+[
+  {
+    "A": "Fiche de renseignements – Départements et services de l'IFAM",
+    "B": "",
+    "C": "",
+    "D": "",
+    "E": "",
+    "F": "",
+    "G": "",
+    "H": ""
+  },
+  {
+    "A": "À compléter par l'administration. Cellules jaunes = à remplir. La ligne grise « Ex. » est un exemple de format : à supprimer ou ignorer.",
+    "B": "",
+    "C": "",
+    "D": "",
+    "E": "",
+    "F": "",
+    "G": "",
+    "H": ""
+  },
+  {
+    "A": "N°",
+    "B": "Département",
+    "C": "Service",
+    "D": "Ce qui s'y fait",
+    "E": "Qui le fait (postes)",
+    "F": "Autorisations dans l'application",
+    "G": "Qui supervise",
+    "H": "Site(s)"
+  },
+  {
+    "A": "Ex.",
+    "B": "Administratif et financier",
+    "C": "Financier",
+    "D": "Encaisser les frais de scolarité, délivrer les reçus, suivre les impayés",
+    "E": "Comptable, caissier",
+    "F": "Voit et enregistre les paiements ; ne voit pas les notes ni les bulletins",
+    "G": "Chef du département administratif et financier",
+    "H": "Tous les sites"
+  },
+  {
+    "A": "1",
+    "B": "Affaires académiques",
+    "C": "Pédagogie / Études",
+    "D": "Planifier les cours et évaluations ; gérer emplois du temps, présences, notes, moyennes, bulletins, progression et discipline pédagogique.",
+    "E": "Responsable des études, assistants des études, responsables pédagogiques de site, formateurs.",
+    "F": "Saisit et corrige les notes selon habilitation ; valide et publie les résultats après contrôle ; consulte dossiers pédagogiques de son site ; accès financier limité au statut de scolarité si nécessaire.",
+    "G": "Responsable du Département des Études / Direction générale.",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "",
+    "B": "",
+    "C": "Insertion professionnelle",
+    "D": "Suivre les stages, conventions, soutenances, insertion et relations avec les structures d’accueil.",
+    "E": "Chargé de stages et d’insertion, responsable des études, référents de site.",
+    "F": "Consulte parcours et coordonnées professionnelles des étudiants autorisés ; gère stages, conventions et suivi ; ne modifie ni paiements ni notes validées.",
+    "G": "Responsable des affaires académiques / Direction des études (à confirmer).",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "2",
+    "B": "Administratif et financier",
+    "C": "Administratif",
+    "D": "Gérer inscriptions administratives, dossiers, attestations, archives, correspondances et personnel.",
+    "E": "Secrétaire administratif, chargé de scolarité, agent administratif.",
+    "F": "Crée et met à jour les dossiers administratifs ; édite documents ; consulte les statuts nécessaires ; ne modifie pas les notes ou encaissements.",
+    "G": "Responsable administratif et financier.",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "",
+    "B": "",
+    "C": "Financier",
+    "D": "Enregistrer frais d’inscription et de scolarité, émettre reçus, suivre impayés, dépenses et rapprochements.",
+    "E": "Comptable, caissier, agent de recouvrement.",
+    "F": "Enregistre et consulte les opérations financières selon son site ; édite reçus et états ; ne modifie pas les notes et résultats pédagogiques.",
+    "G": "Responsable administratif et financier.",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "3",
+    "B": "Commercial",
+    "C": "Commercial",
+    "D": "Prospecter, renseigner les candidats, suivre les contacts, convertir les prospects en inscriptions.",
+    "E": "Responsable commercial, conseillers commerciaux, agents de prospection.",
+    "F": "Crée et suit prospects, contacts et campagnes ; voit le statut de conversion ; n’accède pas aux notes ni aux détails financiers sensibles.",
+    "G": "Responsable commercial.",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "",
+    "B": "",
+    "C": "Après-vente",
+    "D": "Assurer accueil et suivi après inscription ; traiter réclamations, satisfaction, réinscriptions et fidélisation.",
+    "E": "Chargé de relation apprenants, conseiller commercial, chargé de suivi.",
+    "F": "Consulte coordonnées et demandes attribuées ; enregistre réclamations et suivis ; accès limité aux informations de scolarité utiles.",
+    "G": "Responsable commercial / responsable de site (à confirmer).",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "4",
+    "B": "Matériel",
+    "C": "Gestion des stocks (proposition à valider)",
+    "D": "Recenser les équipements et consommables ; gérer stocks, dotations, entrées et sorties.",
+    "E": "Gestionnaire de stock, magasinier, agent matériel.",
+    "F": "Consulte et met à jour inventaire, stocks et mouvements de son périmètre ; pas d’accès aux notes ou aux paiements.",
+    "G": "Responsable du département Matériel.",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "",
+    "B": "",
+    "C": "Maintenance et logistique (proposition à valider)",
+    "D": "Suivre entretien, maintenance, réparations et besoins d’équipement des ateliers et salles.",
+    "E": "Technicien de maintenance, agent logistique, gestionnaire matériel.",
+    "F": "Déclare incidents et interventions ; consulte équipements et historique ; ne valide pas seul les achats ou dépenses.",
+    "G": "Responsable du département Matériel.",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "5",
+    "B": "Marketing et communication ",
+    "C": "Marketing (proposition à valider)",
+    "D": "Concevoir campagnes de recrutement, contenus publicitaires, ciblages et suivi des performances.",
+    "E": "Responsable marketing, chargé marketing digital, community manager.",
+    "F": "Consulte statistiques de campagnes et leads autorisés ; gère contenus marketing ; ne consulte pas notes et dossiers financiers détaillés.",
+    "G": "Responsable marketing et communication.",
+    "H": "Coordination centrale et sites (à confirmer)."
+  },
+  {
+    "A": "",
+    "B": "",
+    "C": "Communication (proposition à valider)",
+    "D": "Gérer image institutionnelle, réseaux sociaux, annonces, visuels et communication interne/externe.",
+    "E": "Chargé de communication, graphiste, community manager.",
+    "F": "Prépare et publie contenus après validation ; consulte actualités et événements ; accès aux données étudiantes uniquement avec autorisation.",
+    "G": "Responsable marketing et communication / Direction générale.",
+    "H": "Coordination centrale et sites (à confirmer)."
+  },
+  {
+    "A": "6",
+    "B": "Événementiel et Relations extérieures",
+    "C": "Événementiel",
+    "D": "Planifier cérémonies, défilés, remises de certificats, ateliers et activités ; gérer inscriptions et logistique événementielle.",
+    "E": "Chargé événementiel, coordinateur d’événement, équipe logistique.",
+    "F": "Crée événements, listes de participation et besoins logistiques ; ne modifie pas les résultats ni les paiements.",
+    "G": "Responsable événementiel et relations extérieures.",
+    "H": "Tous les sites selon événement."
+  },
+  {
+    "A": "",
+    "B": "",
+    "C": "Relations extérieures",
+    "D": "Développer partenariats, relations avec entreprises, institutions, intervenants et opportunités externes.",
+    "E": "Chargé des relations extérieures, chargé de partenariats.",
+    "F": "Gère répertoire partenaires, conventions, correspondances et suivi ; accès restreint aux données personnelles des apprenants.",
+    "G": "Responsable événementiel et relations extérieures / Direction générale.",
+    "H": "Coordination centrale et sites (à confirmer)."
+  },
+  {
+    "A": "7",
+    "B": "Transformation digitale et innovation",
+    "C": "Administration des systèmes (proposition à valider)",
+    "D": "Administrer la plateforme, créer les comptes et profils, gérer droits d’accès, sécurité, sauvegardes et assistance technique.",
+    "E": "Administrateur système, chargé de digitalisation, support informatique.",
+    "F": "Administre comptes, rôles et paramétrages ; accès technique journalisé et limité ; ne change pas les notes ou paiements sans procédure autorisée.",
+    "G": "Responsable transformation digitale et innovation / Direction générale.",
+    "H": "Tous les sites (administration centralisée à confirmer)."
+  },
+  {
+    "A": "",
+    "B": "",
+    "C": "Innovation et accompagnement (proposition à valider)",
+    "D": "Digitaliser formulaires et processus ; tester outils, former utilisateurs, produire tableaux de bord et proposer améliorations.",
+    "E": "Chargé de projets digitaux, analyste de données, référent digital de site.",
+    "F": "Accède aux indicateurs agrégés et données nécessaires aux projets ; teste outils ; aucune modification de données métier sans habilitation.",
+    "G": "Responsable transformation digitale et innovation.",
+    "H": "Tous les sites (à confirmer)."
+  },
+  {
+    "A": "POINTS À VALIDER : inscriptions par site ou centralisées ; intitulés et rattachements exacts des services ; responsables hiérarchiques ; accès selon sites ; validation finale des droits par la Direction.",
+    "B": "",
+    "C": "",
+    "D": "",
+    "E": "",
+    "F": "",
+    "G": "",
+    "H": ""
+  }
+]

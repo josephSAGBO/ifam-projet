@@ -32,6 +32,8 @@
         </div>
     </section>
 
+<x-alumni-showcase :alumnis="$alumniShowcase" title="Ils ont réussi à l'IFAM" :featured="true" />
+
 @if($childrenData->isEmpty())
     <div class="parent-dashboard-empty">
         <span class="material-symbols-outlined" style="font-size:48px; opacity:0.3; color:var(--color-primary); margin-bottom:1rem;">family_restroom</span>
@@ -262,8 +264,6 @@
         @endforeach
     </div>
 @endif
-
-<x-alumni-showcase :alumnis="$alumniShowcase" title="Ils ont réussi à l'IFAM" />
 
 </div>
 @endsection

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -30,6 +31,15 @@ class Course extends Model
     protected $casts = [
         'date' => 'date',
     ];
+
+    public function scopeNotHiddenFromTeacher(Builder $query, int $teacherProfileId): Builder
+    {
+        return $query->whereNotIn('courses.id', function ($hiddenCourses) use ($teacherProfileId) {
+            $hiddenCourses->select('course_id')
+                ->from('teacher_hidden_courses')
+                ->where('teacher_profile_id', $teacherProfileId);
+        });
+    }
 
     public function formation(): BelongsTo
     {

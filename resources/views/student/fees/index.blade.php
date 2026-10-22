@@ -98,6 +98,7 @@
                             <th style="text-align:left; padding:0.875rem 1rem;">Formation</th>
                             <th style="text-align:left; padding:0.875rem 1rem;">Mode</th>
                             <th style="text-align:right; padding:0.875rem 1rem;">Montant versé</th>
+                            <th style="text-align:center; padding:0.875rem 1rem;">Reçu</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,6 +109,15 @@
                                 <td style="padding:0.875rem 1rem;">{{ $payment->enrollment->formation->name ?? 'Formation' }}</td>
                                 <td style="padding:0.875rem 1rem;">{{ $payment->mode ?? $payment->method ?? 'Espèces' }}</td>
                                 <td style="padding:0.875rem 1rem; text-align:right; font-weight:700; color:#059669;">{{ number_format((float) ($payment->montant ?? $payment->amount_paid ?? 0), 0, ',', ' ') }} FCFA</td>
+                                <td style="padding:0.875rem 1rem; text-align:center;">
+                                    @if($payment->isReceiptPublished())
+                                        <a href="{{ route('student.payments.receipt', $payment) }}" style="display:inline-flex; align-items:center; gap:0.25rem; color:var(--color-primary); font-weight:700; text-decoration:none;">
+                                            <span class="material-symbols-outlined" style="font-size:18px;">receipt</span> Voir / imprimer
+                                        </a>
+                                    @else
+                                        <span style="color:var(--color-on-surface-variant);">Non publié</span>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

@@ -188,6 +188,41 @@
             @enderror
         </div>
 
+        {{-- Site de rattachement --}}
+        <div>
+            <label style="display:block; font-size:0.8125rem; font-weight:600; color:var(--color-on-surface); margin-bottom:0.5rem;">
+                Site de rattachement <span style="color:var(--color-error);">*</span>
+            </label>
+            @if($isSuperAdmin)
+                <select name="site_id" id="site_select" required
+                        style="width:100%; box-sizing:border-box; height:44px; padding:0 1rem; border-radius:0.75rem;
+                               border:1.5px solid {{ $errors->has('site_id') ? 'var(--color-error)' : 'var(--color-outline-variant)' }};
+                               background:var(--color-surface-container-low); font-size:0.875rem; color:var(--color-on-surface); cursor:pointer;">
+                    <option value="">Sélectionner un site</option>
+                    @foreach($sites as $site)
+                    <option value="{{ $site->id }}" {{ (string) old('site_id', $defaultSiteId) === (string) $site->id ? 'selected' : '' }}>
+                        {{ $site->nom }} ({{ $site->ville }})
+                    </option>
+                    @endforeach
+                </select>
+                <p style="margin:0.375rem 0 0; font-size:0.75rem; color:var(--color-on-surface-variant);">
+                    Sélectionnez le site principal de l'utilisateur.
+                </p>
+            @else
+                @php $currentSite = $sites->first(); @endphp
+                <div style="height:44px; padding:0 1rem; border-radius:0.75rem; border:1.5px solid var(--color-outline-variant); background:var(--color-surface-container-high); display:flex; align-items:center; font-size:0.875rem; color:var(--color-on-surface); font-weight:600;">
+                    <span class="material-symbols-outlined" style="font-size:18px; color:var(--color-primary); margin-right:0.5rem;">apartment</span>
+                    {{ $currentSite?->nom ?? 'Site assigné' }} (Imposé automatiquement)
+                </div>
+                <p style="margin:0.375rem 0 0; font-size:0.75rem; color:var(--color-on-surface-variant);">
+                    En tant qu'administrateur de site, les comptes créés sont obligatoirement rattachés à votre site.
+                </p>
+            @endif
+            @error('site_id')
+            <p style="margin:0.375rem 0 0; font-size:0.75rem; color:var(--color-error);">{{ $message }}</p>
+            @enderror
+        </div>
+
         {{-- Encadré explicatif de l'activation automatique (sans mot de passe) --}}
         <div>
             <div style="background:#FDF2F8; border:1.5px dashed #F472B6; border-radius:0.75rem; padding:1rem 1.25rem;">

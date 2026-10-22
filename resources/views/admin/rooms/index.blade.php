@@ -25,6 +25,41 @@
     </a>
 </div>
 
+@if($isSuperAdmin && $sites->isNotEmpty())
+<form method="GET" action="{{ route('admin.rooms.index') }}"
+      style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; margin-bottom:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+    <div style="display:flex; align-items:end; gap:1rem;">
+        <div>
+            <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem; text-transform:uppercase; letter-spacing:0.06em;">
+                Filtrer par site
+            </label>
+            <select name="site_id"
+                    style="height:40px; padding:0 2rem 0 0.75rem; border-radius:0.625rem; border:1.5px solid var(--color-outline-variant);
+                           background:var(--color-surface-container-low); font-size:0.875rem; color:var(--color-on-surface); cursor:pointer;">
+                <option value="">Tous les sites</option>
+                @foreach($sites as $site)
+                <option value="{{ $site->id }}" {{ request('site_id') == $site->id ? 'selected' : '' }}>
+                    {{ $site->nom }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+        <button type="submit"
+                style="height:40px; padding:0 1.25rem; border-radius:0.625rem; border:none; cursor:pointer;
+                       background:var(--color-primary-container); color:var(--color-on-primary); font-size:0.875rem; font-weight:700;">
+            Filtrer
+        </button>
+        @if(request('site_id'))
+        <a href="{{ route('admin.rooms.index') }}"
+           style="height:40px; padding:0 1rem; border-radius:0.625rem; display:inline-flex; align-items:center;
+                  background:var(--color-surface-container-high); color:var(--color-on-surface); font-size:0.875rem; text-decoration:none;">
+            Effacer
+        </a>
+        @endif
+    </div>
+</form>
+@endif
+
 <div style="background:var(--color-surface-container-lowest); border-radius:1rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); overflow:hidden;">
     @if($rooms->isEmpty())
     <div style="padding:4rem 2rem; text-align:center; color:var(--color-on-surface-variant);">
@@ -37,6 +72,7 @@
             <thead>
                 <tr style="background:var(--color-surface-container-low); border-bottom:1px solid var(--color-outline-variant);">
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Nom de la salle</th>
+                    <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Site</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Type</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Capacité</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Statut</th>
@@ -52,13 +88,19 @@
                     <td style="padding:0.875rem 1rem; color:var(--color-on-surface); font-weight:600;">
                         {{ $room->name }}
                     </td>
+
+                    <td style="padding:0.875rem 1rem;">
+                        <span style="padding:0.25rem 0.5rem; border-radius:0.375rem; font-size:0.75rem; font-weight:600; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;">
+                            {{ $room->site?->nom ?? '—' }}
+                        </span>
+                    </td>
                     
                     <td style="padding:0.875rem 1rem; color:var(--color-on-surface-variant);">
                         {{ $room->type ?? 'Standard' }}
                     </td>
 
                     <td style="padding:0.875rem 1rem; color:var(--color-on-surface-variant);">
-                        {{ $room->capacity }} places
+                        {{ $room->capacity ? $room->capacity . ' places' : '—' }}
                     </td>
 
                     <td style="padding:0.875rem 1rem;">

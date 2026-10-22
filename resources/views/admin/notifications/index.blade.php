@@ -1,5 +1,49 @@
-@extends('layouts.admin')
+@php
+    $isAdminLayout = auth()->user()?->hasAnyRole([
+        'administrateur', 'responsable_site', 'direction_daf',
+        'responsable_administratif_financier', 'responsable_administratif',
+        'secretaire_administratif', 'charge_scolarite', 'agent_administratif',
+        'responsable_financier', 'comptable', 'caissier', 'agent_recouvrement',
+        'direction_daa', 'responsable_daa', 'responsable_etudes', 'responsable_insertion',
+    ]);
+@endphp
+
+@extends($isAdminLayout ? 'layouts.admin' : 'layouts.role')
+
 @section('title', 'Notifications')
+@section('role_label', auth()->user()?->getRoleNames()->first() ?? 'Utilisateur')
+@section('home_route', match(true) {
+    auth()->user()?->hasRole('etudiant') => route('student.dashboard'),
+    auth()->user()?->hasRole('enseignant') => route('teacher.dashboard'),
+    auth()->user()?->hasRole('parent') => route('parent.dashboard'),
+    auth()->user()?->hasRole('direction') => route('direction.dashboard'),
+    auth()->user()?->hasRole('alumni') => route('alumni.dashboard'),
+    default => '/',
+})
+
+@section('nav_links')
+    @if(auth()->user()?->hasRole('direction'))
+        <a href="{{ route('direction.dashboard') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; color:var(--color-on-surface-variant); text-decoration:none; font-size:0.8125rem; font-weight:700;">
+            <span class="material-symbols-outlined" style="font-size:18px;">dashboard</span> Dashboard
+        </a>
+        <a href="{{ route('direction.students.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; color:var(--color-on-surface-variant); text-decoration:none; font-size:0.8125rem; font-weight:700;">
+            <span class="material-symbols-outlined" style="font-size:18px;">school</span> Étudiants
+        </a>
+        <a href="{{ route('direction.finance.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; color:var(--color-on-surface-variant); text-decoration:none; font-size:0.8125rem; font-weight:700;">
+            <span class="material-symbols-outlined" style="font-size:18px;">account_balance_wallet</span> Finances
+        </a>
+        <a href="{{ route('direction.reports.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; color:var(--color-on-surface-variant); text-decoration:none; font-size:0.8125rem; font-weight:700;">
+            <span class="material-symbols-outlined" style="font-size:18px;">assignment</span> Rapports
+        </a>
+    @elseif(auth()->user()?->hasRole('etudiant'))
+        @include('student.partials.nav')
+    @elseif(auth()->user()?->hasRole('enseignant'))
+        @include('teacher.partials.nav')
+    @elseif(auth()->user()?->hasRole('parent'))
+        @include('parent.partials.nav')
+    @endif
+@endsection
+
 @section('content')
 
 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.75rem; flex-wrap:wrap; gap:1rem;">
@@ -12,7 +56,7 @@
             </span>
             @endif
         </h1>
-        <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">Vos messages et alertes.</p>
+        <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">Vos messages et alertes personnels.</p>
     </div>
     <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
         @if($unreadCount > 0)
@@ -23,10 +67,12 @@
             </button>
         </form>
         @endif
+        @if(auth()->user()?->hasAnyRole(['administrateur', 'responsable_site', 'direction_daf', 'direction_daa', 'direction']))
         <a href="{{ route('admin.notifications.create') }}"
            style="height:40px; display:inline-flex; align-items:center; gap:0.5rem; padding:0 1.25rem; border-radius:0.75rem; background:var(--color-primary-container); color:var(--color-on-primary); text-decoration:none; font-size:0.875rem; font-weight:700; box-shadow:0 3px 10px rgba(228,0,102,0.3);">
             <span class="material-symbols-outlined" style="font-size:18px;">send</span> Envoyer
         </a>
+        @endif
     </div>
 </div>
 
@@ -91,18 +137,19 @@ $typeConfig = [
                     @if(!$notif->isRead())
                     <span style="width:8px; height:8px; border-radius:50%; background:{{ $cfg['text'] }}; flex-shrink:0;"></span>
                     @endif
+                    @if($notif->link)
+                    <a href="{{ route('admin.notifications.open', $notif) }}"
+                       style="font-weight:700; font-size:0.9375rem; color:{{ $cfg['text'] }}; text-decoration:none;"
+                       title="Ouvrir et marquer comme lu">{{ $notif->title }}</a>
+                    @else
                     <span style="font-weight:700; font-size:0.9375rem; color:{{ $cfg['text'] }};">{{ $notif->title }}</span>
+                    @endif
                 </div>
                 <p style="margin:0 0 0.5rem; font-size:0.875rem; color:var(--color-on-surface-variant); line-height:1.5;">{{ $notif->message }}</p>
                 <div style="font-size:0.75rem; color:var(--color-on-surface-variant); display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
                     <span>{{ $notif->created_at->diffForHumans() }}</span>
                     @if($notif->sender)
                     <span>· De : <strong>{{ $notif->sender->last_name ?? '' }} {{ $notif->sender->first_name ?? '' }}</strong></span>
-                    @endif
-                    @if($notif->link)
-                    <a href="{{ $notif->link }}" style="color:{{ $cfg['text'] }}; font-weight:600; text-decoration:none;">
-                        Voir →
-                    </a>
                     @endif
                 </div>
             </div>

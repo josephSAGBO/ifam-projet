@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\HasSiteFilter;
 use App\Http\Controllers\Controller;
 use App\Models\Enrollment;
 use App\Models\Payment;
@@ -19,17 +20,31 @@ use Throwable;
 
 class PaymentController extends Controller
 {
+    use HasSiteFilter;
+
     public function __construct(protected PaiementService $paiementService) {}
 
     public function index(Request $request): View
     {
+        ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
+        if (auth()->check() && ! auth()->user()->can('view payments') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+            abort(403, 'Accès interdit : vous n\'avez pas les permissions pour consulter les paiements financiers.');
+        }
+
         $filters = $this->validatedPaymentFilters($request);
         $query = $this->filteredPaymentsQuery($filters);
+        if ($selectedSiteId !== null) {
+            $query->whereHas('enrollment', fn ($q) => $q->where('site_id', $selectedSiteId));
+        }
         $filteredTotal = (float) (clone $query)->reorder()->sum(DB::raw('COALESCE(montant, amount_paid, 0)'));
         $payments = $query->paginate(15)->withQueryString();
-        $students = StudentProfile::with('user')->get()->sortBy(fn ($s) => $s->user->last_name ?? '');
+        $studentsQuery = StudentProfile::query()->with('user');
+        if ($selectedSiteId !== null) {
+            $studentsQuery->whereHas('enrollments', fn ($q) => $q->where('site_id', $selectedSiteId));
+        }
+        $students = $studentsQuery->get()->sortBy(fn ($s) => $s->user->last_name ?? '');
 
-        return view('admin.payments.index', compact('payments', 'students', 'filteredTotal'));
+        return view('admin.payments.index', compact('payments', 'students', 'filteredTotal', 'sites', 'selectedSiteId'));
     }
 
     public function printReport(Request $request): View
@@ -45,8 +60,16 @@ class PaymentController extends Controller
 
     public function create(Request $request)
     {
-        $allEnrollments = Enrollment::with(['studentProfile.user', 'formation.parcours', 'academicSession', 'payments'])
-            ->get();
+        if (auth()->check() && ! auth()->user()->can('create payments') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+            abort(403, "Vous n'avez pas la permission d'enregistrer des paiements.");
+        }
+
+        $query = Enrollment::with(['studentProfile.user', 'formation.parcours', 'academicSession', 'payments']);
+        if (auth()->check() && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+            $query->whereIn('site_id', auth()->user()->accessibleSiteIds());
+        }
+
+        $allEnrollments = $query->get();
 
         $allEnrollments
             ->groupBy(fn (Enrollment $enrollment) => $enrollment->formation?->parcours_id
@@ -71,6 +94,10 @@ class PaymentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if (! $request->user()->can('create payments') && ! $request->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+            abort(403, "Vous n'avez pas la permission d'enregistrer des paiements.");
+        }
+
         $validated = $request->validate([
             'inscription_id' => 'required|exists:enrollments,id',
             'montant' => 'required|numeric|min:0.01',
@@ -81,6 +108,19 @@ class PaymentController extends Controller
         ]);
 
         $enrollment = Enrollment::findOrFail($validated['inscription_id']);
+        if (! $request->user()->hasSiteAccess($enrollment->site_id)) {
+            abort(403, 'Accès interdit : vous ne pouvez enregistrer un paiement que pour votre site.');
+        }
+
+        if ($request->user()->can('validate financial operations') || $request->user()->hasRole('administrateur')) {
+            $validated['status'] = 'valide';
+            $validated['validated_by'] = auth()->id();
+            $validated['validated_at'] = now();
+        } else {
+            $validated['status'] = 'en_attente';
+            $validated['validated_by'] = null;
+            $validated['validated_at'] = null;
+        }
 
         try {
             $payment = $this->paiementService->enregistrerPaiement($enrollment, $validated, auth()->id());
@@ -101,6 +141,84 @@ class PaymentController extends Controller
 
     public function receipt(Payment $payment): View
     {
+        if ($payment->enrollment && ! auth()->user()->hasSiteAccess($payment->enrollment->site_id)) {
+            abort(403, 'Accès interdit à ce reçu de paiement.');
+        }
+
+        return $this->renderReceipt($payment, 'admin');
+    }
+
+    public function studentReceipt(Payment $payment): View
+    {
+        $studentProfile = auth()->user()->studentProfile;
+        $payment->loadMissing('enrollment');
+
+        abort_unless(
+            $payment->isReceiptPublished()
+                && $studentProfile
+                && (int) $payment->enrollment?->student_profile_id === (int) $studentProfile->id,
+            404
+        );
+
+        return $this->renderReceipt($payment, 'student');
+    }
+
+    public function parentReceipt(Payment $payment): View
+    {
+        $payment->loadMissing('enrollment');
+        $studentProfileId = $payment->enrollment?->student_profile_id;
+        $parentHasAccess = $studentProfileId !== null
+            && auth()->user()->children()
+                ->whereHas('studentProfile', fn ($query) => $query->whereKey($studentProfileId))
+                ->exists();
+
+        abort_unless($payment->isReceiptPublished() && $parentHasAccess, 404);
+
+        return $this->renderReceipt($payment, 'parent');
+    }
+
+    public function publishReceipt(Payment $payment): RedirectResponse
+    {
+        $this->authorizeReceiptPublication($payment);
+        abort_unless($payment->estValide(), 403, 'Seul un paiement validé peut être publié.');
+
+        $payment->forceFill([
+            'receipt_published_at' => now(),
+            'receipt_published_by' => auth()->id(),
+        ])->save();
+
+        return back()->with('success', 'Le reçu est maintenant publié dans les espaces privés de l’étudiant et de ses parents.');
+    }
+
+    public function unpublishReceipt(Payment $payment): RedirectResponse
+    {
+        $this->authorizeReceiptPublication($payment);
+
+        $payment->forceFill([
+            'receipt_published_at' => null,
+            'receipt_published_by' => null,
+        ])->save();
+
+        return back()->with('success', 'La publication du reçu a été retirée.');
+    }
+
+    private function authorizeReceiptPublication(Payment $payment): void
+    {
+        $user = auth()->user();
+        abort_unless(
+            $user->can('print receipts') || $user->hasRole('administrateur'),
+            403,
+            'Vous n’avez pas la permission de publier les reçus.'
+        );
+        abort_unless($payment->enrollment, 403, 'Ce paiement n’est lié à aucune inscription.');
+
+        if (! $user->hasSiteAccess($payment->enrollment->site_id)) {
+            abort(403, 'Accès interdit à ce reçu de paiement.');
+        }
+    }
+
+    private function renderReceipt(Payment $payment, string $audience): View
+    {
         $payment->load([
             'enrollment.studentProfile.user',
             'enrollment.formation',
@@ -114,7 +232,7 @@ class PaymentController extends Controller
         $amount = (float) ($payment->montant ?? $payment->amount_paid ?? 0);
         $amountInWords = $this->amountInWords((int) round($amount));
 
-        return view('admin.payments.receipt', compact('payment', 'remainingBalance', 'amountInWords'));
+        return view('admin.payments.receipt', compact('payment', 'remainingBalance', 'amountInWords', 'audience'));
     }
 
     private function amountInWords(int $amount): string
@@ -218,7 +336,12 @@ class PaymentController extends Controller
                 'enrollment.academicSession',
                 'studentProfile.user',
                 'enregistrePar',
+                'validateur',
             ])
+            ->when(auth()->check() && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf']), function (Builder $query): void {
+                $accessibleSiteIds = auth()->user()->accessibleSiteIds();
+                $query->whereHas('enrollment', fn (Builder $eq) => $eq->whereIn('site_id', $accessibleSiteIds));
+            })
             ->when($filters['student_id'] ?? null, function (Builder $query, int|string $studentId): void {
                 $query->where(function (Builder $query) use ($studentId): void {
                     $query->where('student_profile_id', $studentId)
@@ -258,6 +381,14 @@ class PaymentController extends Controller
 
     public function edit(Payment $payment)
     {
+        if ($payment->enrollment && ! auth()->user()->hasSiteAccess($payment->enrollment->site_id)) {
+            abort(403, 'Accès interdit : ce paiement ne relève pas de votre site.');
+        }
+
+        if ($payment->estValide() && ! auth()->user()->can('validate financial operations') && ! auth()->user()->hasRole('administrateur')) {
+            abort(403, 'Un paiement validé ne peut pas être modifié sans habilitation supérieure.');
+        }
+
         $payment->load(['enrollment.studentProfile.user', 'enrollment.formation']);
         $enrollments = Enrollment::with(['studentProfile.user', 'formation'])->get();
 
@@ -266,6 +397,14 @@ class PaymentController extends Controller
 
     public function update(Request $request, Payment $payment)
     {
+        if ($payment->enrollment && ! auth()->user()->hasSiteAccess($payment->enrollment->site_id)) {
+            abort(403, 'Accès interdit : ce paiement ne relève pas de votre site.');
+        }
+
+        if ($payment->estValide() && ! auth()->user()->can('validate financial operations') && ! auth()->user()->hasRole('administrateur')) {
+            abort(403, 'Un paiement validé ne peut pas être modifié sans habilitation supérieure.');
+        }
+
         $validated = $request->validate([
             'montant' => 'required|numeric|min:0.01',
             'date_paiement' => 'required|date',
@@ -301,9 +440,49 @@ class PaymentController extends Controller
 
     public function destroy(Payment $payment)
     {
+        if ($payment->enrollment && ! auth()->user()->hasSiteAccess($payment->enrollment->site_id)) {
+            abort(403, 'Accès interdit : ce paiement ne relève pas de votre site.');
+        }
+
+        if ($payment->estValide() && ! auth()->user()->can('validate financial operations') && ! auth()->user()->hasRole('administrateur')) {
+            abort(403, 'Un paiement validé ne peut pas être supprimé sans habilitation supérieure.');
+        }
+
         $payment->delete();
 
         return redirect()->route('admin.payments.index')
             ->with('success', 'Paiement supprimé avec succès.');
+    }
+
+    public function validatePayment(Request $request, Payment $payment): RedirectResponse
+    {
+        if (! auth()->user()->can('validate financial operations') && ! auth()->user()->hasRole('administrateur')) {
+            abort(403, 'Accès interdit : vous ne disposez pas des droits de validation financière.');
+        }
+
+        $payment->update([
+            'status' => 'valide',
+            'validated_by' => auth()->id(),
+            'validated_at' => now(),
+            'validation_notes' => $request->input('validation_notes'),
+        ]);
+
+        return back()->with('success', 'Paiement validé avec succès.');
+    }
+
+    public function rejectPayment(Request $request, Payment $payment): RedirectResponse
+    {
+        if (! auth()->user()->can('validate financial operations') && ! auth()->user()->hasRole('administrateur')) {
+            abort(403, 'Accès interdit : vous ne disposez pas des droits de validation financière.');
+        }
+
+        $payment->update([
+            'status' => 'rejete',
+            'validated_by' => auth()->id(),
+            'validated_at' => now(),
+            'validation_notes' => $request->input('validation_notes'),
+        ]);
+
+        return back()->with('success', 'Paiement rejeté.');
     }
 }

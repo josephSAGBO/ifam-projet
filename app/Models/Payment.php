@@ -18,6 +18,12 @@ class Payment extends Model
         'reference',
         'enregistre_par',
         'notes',
+        'status',
+        'validated_by',
+        'validated_at',
+        'validation_notes',
+        'receipt_published_at',
+        'receipt_published_by',
         // Colonnes legacy maintenues pour compatibilité
         'fee_id',
         'student_profile_id',
@@ -31,7 +37,29 @@ class Payment extends Model
         'amount_paid' => 'decimal:2',
         'date_paiement' => 'date',
         'payment_date' => 'date',
+        'validated_at' => 'datetime',
+        'receipt_published_at' => 'datetime',
     ];
+
+    public function estValide(): bool
+    {
+        return $this->status === 'valide';
+    }
+
+    public function estEnAttente(): bool
+    {
+        return $this->status === 'en_attente';
+    }
+
+    public function estRejete(): bool
+    {
+        return $this->status === 'rejete';
+    }
+
+    public function isReceiptPublished(): bool
+    {
+        return $this->estValide() && $this->receipt_published_at !== null;
+    }
 
     protected static function booted()
     {
@@ -102,5 +130,15 @@ class Payment extends Model
     public function enregistrePar(): BelongsTo
     {
         return $this->belongsTo(User::class, 'enregistre_par');
+    }
+
+    public function validateur(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by');
+    }
+
+    public function receiptPublisher(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'receipt_published_by');
     }
 }

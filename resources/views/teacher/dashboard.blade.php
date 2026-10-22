@@ -17,7 +17,7 @@
     <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
         {{ now()->isoFormat('dddd D MMMM YYYY') }}
         @if($activeSession)
-        · Session : <strong>{{ $activeSession->name }}</strong>
+        · Rentrée : <strong>{{ $activeSession->name }}</strong>
         @endif
     </p>
 </div>

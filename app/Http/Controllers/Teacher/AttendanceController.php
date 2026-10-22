@@ -9,10 +9,15 @@ use App\Models\AttendanceSheet;
 use App\Models\Course;
 use App\Models\Formation;
 use App\Models\Module;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
+    public function __construct(
+        protected NotificationService $notificationService
+    ) {}
+
     public function index(Request $request)
     {
         $teacherProfile = auth()->user()->teacherProfile;
@@ -31,10 +36,12 @@ class AttendanceController extends Controller
             $query->where('enseignant_id', $teacherProfile->id)
                 ->orWhere('teacher_profile_id', $teacherProfile->id);
         })
+            ->notHiddenFromTeacher($teacherProfile->id)
             ->distinct()
             ->pluck('academic_session_id');
         $sessionsQuery = AcademicSession::whereIn('id', $teacherSessionIds);
         if (! $history) {
+            $sessionsQuery->where('status', '!=', 'terminee');
             $sessionsQuery->where(function ($query) use ($selectedSessionId) {
                 $query->where('is_current', true)
                     ->when($selectedSessionId, fn ($q) => $q->orWhere('id', $selectedSessionId));
@@ -46,16 +53,19 @@ class AttendanceController extends Controller
             $q->where('enseignant_id', $teacherProfile->id)
                 ->orWhere('teacher_profile_id', $teacherProfile->id);
         })
+            ->notHiddenFromTeacher($teacherProfile->id)
             ->with(['module', 'formation', 'academicSession', 'salle']);
         if (! $history) {
             $baseCoursesQuery->where('statut', 'en_cours');
+            $baseCoursesQuery->whereHas('academicSession', fn ($query) => $query->where('status', '!=', 'terminee'));
             if (! $selectedSessionId) {
                 $baseCoursesQuery->whereHas('academicSession', fn ($q) => $q->where('is_current', true));
             }
         } else {
             $baseCoursesQuery->where(function ($query) {
                 $query->where('statut', 'termine')
-                    ->orWhereHas('attendanceSheets', fn ($sheets) => $sheets->where('statut', 'cloturee'));
+                    ->orWhereHas('attendanceSheets', fn ($sheets) => $sheets->where('statut', 'cloturee'))
+                    ->orWhereHas('academicSession', fn ($session) => $session->where('status', 'terminee'));
             });
         }
 
@@ -81,6 +91,7 @@ class AttendanceController extends Controller
                     $q->where('enseignant_id', $teacherProfile->id)
                         ->orWhere('teacher_profile_id', $teacherProfile->id);
                 })
+                    ->notHiddenFromTeacher($teacherProfile->id)
                     ->when($selectedSessionId, fn ($query) => $query->where('academic_session_id', $selectedSessionId))
                     ->pluck('formation_id'))
                     ->orderBy('name')
@@ -94,6 +105,7 @@ class AttendanceController extends Controller
                     $q->where('enseignant_id', $teacherProfile->id)
                         ->orWhere('teacher_profile_id', $teacherProfile->id);
                 })
+                    ->notHiddenFromTeacher($teacherProfile->id)
                     ->when($selectedSessionId, fn ($query) => $query->where('academic_session_id', $selectedSessionId))
                     ->when($selectedFormationId, fn ($query) => $query->where('formation_id', $selectedFormationId))
                     ->pluck('module_id'))
@@ -147,8 +159,9 @@ class AttendanceController extends Controller
         $course = Course::where(function ($q) use ($teacherProfile) {
             $q->where('enseignant_id', $teacherProfile->id)
                 ->orWhere('teacher_profile_id', $teacherProfile->id);
-        })->findOrFail($request->course_id);
-        abort_unless($course->statut === 'en_cours', 403, 'Ce cours est terminé.');
+        })->notHiddenFromTeacher($teacherProfile->id)->findOrFail($request->course_id);
+        $course->loadMissing('academicSession');
+        abort_unless($course->statut === 'en_cours' && $course->academicSession?->status !== 'terminee', 403, 'Ce cours est terminé.');
 
         $attendanceDate = $validated['date'] ?? now()->toDateString();
         $attendanceSheet = AttendanceSheet::where('course_id', $course->id)
@@ -169,7 +182,7 @@ class AttendanceController extends Controller
         }
 
         foreach ($validated['attendances'] as $studentProfileId => $data) {
-            Attendance::updateOrCreate(
+            $attendance = Attendance::updateOrCreate(
                 [
                     'course_id' => $course->id,
                     'student_profile_id' => $studentProfileId,
@@ -182,6 +195,12 @@ class AttendanceController extends Controller
                     'remarks' => $data['remarks'] ?? null,
                 ]
             );
+
+            // Notifier l'étudiant et ses parents en cas d'absence ou de retard
+            if (in_array($data['status'], ['absent', 'late'], true)) {
+                $attendance->load(['course.module', 'studentProfile.user']);
+                $this->notificationService->absenceEnregistree($attendance);
+            }
         }
 
         $redirectParameters = ['course_id' => $course->id];
@@ -201,8 +220,9 @@ class AttendanceController extends Controller
         $course = Course::where(function ($q) use ($teacherProfile) {
             $q->where('enseignant_id', $teacherProfile->id)
                 ->orWhere('teacher_profile_id', $teacherProfile->id);
-        })->findOrFail($attendance->course_id);
-        abort_unless($course->statut === 'en_cours', 403, 'Ce cours est terminé.');
+        })->notHiddenFromTeacher($teacherProfile->id)->findOrFail($attendance->course_id);
+        $course->loadMissing('academicSession');
+        abort_unless($course->statut === 'en_cours' && $course->academicSession?->status !== 'terminee', 403, 'Ce cours est terminé.');
         $attendanceSheet = AttendanceSheet::where('course_id', $course->id)
             ->whereDate('date', $attendance->date)
             ->first();

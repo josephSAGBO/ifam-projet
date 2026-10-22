@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\HasSiteFilter;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicSession;
 use App\Models\Enrollment;
@@ -14,12 +15,21 @@ use Illuminate\Http\Request;
 
 class EnrollmentController extends Controller
 {
+    use HasSiteFilter;
+
     public function __construct(protected PaiementService $paiementService) {}
 
     public function index(Request $request)
     {
+        ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
         $query = Enrollment::with(['studentProfile.user', 'formation', 'academicSession', 'payments'])
+            ->when(auth()->check() && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf']), function ($q) {
+                $q->whereIn('site_id', auth()->user()->accessibleSiteIds());
+            })
             ->latest('enrollment_date');
+        if ($selectedSiteId !== null) {
+            $query->where('site_id', $selectedSiteId);
+        }
 
         if ($request->filled('formation_id')) {
             $query->where('formation_id', $request->formation_id);
@@ -45,9 +55,13 @@ class EnrollmentController extends Controller
 
         $enrollments = $query->paginate(15)->withQueryString();
         $formations = Formation::where('is_active', true)->orderBy('name')->get();
-        $sessions = AcademicSession::orderBy('start_date', 'desc')->get();
+        $sessionsQuery = AcademicSession::orderBy('start_date', 'desc');
+        if ($selectedSiteId !== null) {
+            $sessionsQuery->where('site_id', $selectedSiteId);
+        }
+        $sessions = $sessionsQuery->get();
 
-        return view('admin.enrollments.index', compact('enrollments', 'formations', 'sessions'));
+        return view('admin.enrollments.index', compact('enrollments', 'formations', 'sessions', 'sites', 'selectedSiteId'));
     }
 
     public function create()
@@ -80,6 +94,11 @@ class EnrollmentController extends Controller
             'enrollment_date' => 'required|date',
             'notes' => 'nullable|string|max:1000',
         ]);
+
+        $session = AcademicSession::findOrFail($validated['academic_session_id']);
+        if (! auth()->user()->hasSiteAccess($session->site_id)) {
+            abort(403, 'Accès interdit : vous ne pouvez créer une inscription que pour votre site.');
+        }
 
         // Vérification doublon
         $exists = Enrollment::where('student_profile_id', $validated['student_profile_id'])
@@ -149,6 +168,10 @@ class EnrollmentController extends Controller
 
     public function show(Enrollment $enrollment)
     {
+        if ($enrollment->site_id && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
+            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
+        }
+
         $enrollment->load(['studentProfile.user', 'formation.parcours', 'academicSession', 'payments.enregistrePar']);
         $totalPaye = $this->paiementService->totalPaye($enrollment);
         $solde = $this->paiementService->solde($enrollment);
@@ -177,6 +200,10 @@ class EnrollmentController extends Controller
 
     public function edit(Enrollment $enrollment)
     {
+        if ($enrollment->site_id && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
+            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
+        }
+
         $enrollment->load(['studentProfile.user', 'formation', 'academicSession']);
         $formations = Formation::where('is_active', true)->orderBy('name')->get();
         $parcoursList = Parcours::with(['formations' => fn ($query) => $query->where('is_active', true)])
@@ -189,6 +216,10 @@ class EnrollmentController extends Controller
 
     public function update(Request $request, Enrollment $enrollment)
     {
+        if ($enrollment->site_id && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
+            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
+        }
+
         $validated = $request->validate([
             'bourse_type' => 'nullable|in:aucune,pourcentage,montant',
             'bourse_valeur' => 'nullable|numeric|min:0',
@@ -215,6 +246,10 @@ class EnrollmentController extends Controller
 
     public function destroy(Enrollment $enrollment)
     {
+        if ($enrollment->site_id && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
+            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
+        }
+
         $enrollment->delete();
 
         return redirect()->route('admin.enrollments.index')

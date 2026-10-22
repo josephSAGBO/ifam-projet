@@ -1,6 +1,20 @@
-@extends('layouts.admin')
+@extends($audience === 'admin' ? 'layouts.admin' : 'layouts.role')
 
 @section('title', 'Reçu de paiement')
+
+@if($audience === 'student')
+    @section('role_label', 'Étudiant')
+    @section('home_route', route('student.dashboard'))
+    @section('nav_links')
+        @include('student.partials.nav')
+    @endsection
+@elseif($audience === 'parent')
+    @section('role_label', 'Parent')
+    @section('home_route', route('parent.dashboard'))
+    @section('nav_links')
+        @include('parent.partials.nav')
+    @endsection
+@endif
 
 @section('content')
 @php
@@ -238,13 +252,21 @@
         #admin-sidebar-toggle,
         .receipt-actions,
         #flash-success,
-        #flash-error {
+        #flash-error,
+        .role-topbar,
+        .role-navigation {
             display: none !important;
         }
         #admin-main-shell {
             padding-left: 0 !important;
         }
         #admin-main-content {
+            padding: 0 !important;
+            min-height: 297mm !important;
+        }
+        .role-main-content {
+            max-width: none !important;
+            margin: 0 !important;
             padding: 0 !important;
             min-height: 297mm !important;
         }
@@ -260,14 +282,39 @@
 </style>
 
 <div class="receipt-actions">
-    <a href="{{ route('admin.payments.index') }}">
-        <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span>
-        Retour aux paiements
-    </a>
-    <button type="button" onclick="window.print()">
-        <span class="material-symbols-outlined" style="font-size:18px;">print</span>
-        Imprimer le reçu
-    </button>
+    <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+        <a href="{{ $audience === 'admin' ? route('admin.payments.index') : ($audience === 'parent' ? route('parent.fees') : route('student.fees')) }}">
+            <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span>
+            {{ $audience === 'admin' ? 'Retour aux paiements' : 'Retour à ma scolarité' }}
+        </a>
+        @if($payment->estValide())
+            <span style="display:inline-flex; align-items:center; gap:0.25rem; padding:0.25rem 0.625rem; border-radius:9999px; font-size:0.75rem; font-weight:700; background:#dcfce7; color:#166534;">
+                <span class="material-symbols-outlined" style="font-size:14px;">verified</span> Validé{{ $payment->validateur ? ' par ' . $payment->validateur->full_name : '' }}
+            </span>
+        @elseif($payment->estEnAttente())
+            <span style="display:inline-flex; align-items:center; gap:0.25rem; padding:0.25rem 0.625rem; border-radius:9999px; font-size:0.75rem; font-weight:700; background:#fef3c7; color:#92400e;">
+                <span class="material-symbols-outlined" style="font-size:14px;">hourglass_empty</span> En attente de validation
+            </span>
+        @else
+            <span style="display:inline-flex; align-items:center; gap:0.25rem; padding:0.25rem 0.625rem; border-radius:9999px; font-size:0.75rem; font-weight:700; background:#fee2e2; color:#991b1b;">
+                <span class="material-symbols-outlined" style="font-size:14px;">cancel</span> Rejeté
+            </span>
+        @endif
+    </div>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+        @if($audience === 'admin' && $payment->estEnAttente() && (auth()->user()?->hasRole('administrateur') || auth()->user()?->can('validate financial operations')))
+            <form method="POST" action="{{ route('admin.payments.validate', $payment) }}" style="display:inline;">
+                @csrf @method('PATCH')
+                <button type="submit" style="background:#16a34a; color:#fff;" onclick="return confirm('Valider ce paiement ?')">
+                    <span class="material-symbols-outlined" style="font-size:18px;">check_circle</span> Valider le paiement
+                </button>
+            </form>
+        @endif
+        <button type="button" onclick="window.print()">
+            <span class="material-symbols-outlined" style="font-size:18px;">print</span>
+            Imprimer le reçu
+        </button>
+    </div>
 </div>
 
 <article class="receipt-paper" aria-label="Reçu de paiement de scolarité">

@@ -25,6 +25,47 @@
     </a>
 </div>
 
+@if($isResponsableEtudes)
+<form method="GET" action="{{ route('admin.courses.index') }}" style="display:flex; align-items:end; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;">
+    <label style="font-size:0.8rem; color:var(--color-on-surface-variant);">
+        Formation
+        <select name="formation_id" style="display:block; min-width:220px; margin-top:0.25rem; padding:0.55rem 0.75rem; border:1px solid var(--color-outline-variant); border-radius:0.5rem; background:var(--color-surface-container-lowest); color:var(--color-on-surface);">
+            <option value="">Toutes les formations</option>
+            @foreach($availableFormations as $formation)
+                <option value="{{ $formation->id }}" @selected($selectedFormationId === $formation->id)>{{ $formation->name }}</option>
+            @endforeach
+        </select>
+    </label>
+    <label style="font-size:0.8rem; color:var(--color-on-surface-variant);">
+        Module
+        <select name="module_id" style="display:block; min-width:220px; margin-top:0.25rem; padding:0.55rem 0.75rem; border:1px solid var(--color-outline-variant); border-radius:0.5rem; background:var(--color-surface-container-lowest); color:var(--color-on-surface);">
+            <option value="">Tous les modules</option>
+            @foreach($availableModules as $module)
+                <option value="{{ $module->id }}" @selected($selectedModuleId === $module->id)>{{ $module->name }}</option>
+            @endforeach
+        </select>
+    </label>
+    <button type="submit" style="height:40px; padding:0 1rem; border:0; border-radius:0.5rem; background:var(--color-primary-container); color:var(--color-on-primary); font-weight:700; cursor:pointer;">
+        Filtrer
+    </button>
+    @if($selectedFormationId || $selectedModuleId)
+        <a href="{{ route('admin.courses.index') }}" style="height:40px; display:inline-flex; align-items:center; color:var(--color-primary); text-decoration:none; font-size:0.875rem; font-weight:600;">Réinitialiser</a>
+    @endif
+</form>
+@else
+<form method="GET" action="{{ route('admin.courses.index') }}" style="display:flex; align-items:end; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;">
+    <label style="font-size:0.8rem; color:var(--color-on-surface-variant);">
+        Filtrer les cours par site
+        <select name="site_id" onchange="this.form.submit()" style="display:block; min-width:220px; margin-top:0.25rem; padding:0.55rem 0.75rem; border:1px solid var(--color-outline-variant); border-radius:0.5rem; background:var(--color-surface-container-lowest); color:var(--color-on-surface);">
+            <option value="">Tous les sites accessibles</option>
+            @foreach($availableSites as $site)
+                <option value="{{ $site->id }}" @selected($selectedSiteId === $site->id)>{{ $site->nom }}</option>
+            @endforeach
+        </select>
+    </label>
+</form>
+@endif
+
 <div style="background:var(--color-surface-container-lowest); border-radius:1rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); overflow:hidden;">
     @if($courses->isEmpty())
     <div style="padding:4rem 2rem; text-align:center; color:var(--color-on-surface-variant);">

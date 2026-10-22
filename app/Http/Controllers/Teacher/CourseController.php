@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\Course;
 use App\Models\Enrollment;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CourseController extends Controller
 {
@@ -21,6 +23,7 @@ class CourseController extends Controller
                 $q->where('enseignant_id', $teacherProfile->id)
                     ->orWhere('teacher_profile_id', $teacherProfile->id);
             })
+            ->notHiddenFromTeacher($teacherProfile->id)
             ->orderByDesc('date')
             ->orderBy('heure_debut')
             ->get();
@@ -30,8 +33,36 @@ class CourseController extends Controller
             ->unique('id')
             ->sortByDesc('start_date')
             ->values();
+        $activeCourses = $courses
+            ->reject(fn (Course $course) => $course->academicSession?->status === 'terminee')
+            ->values();
+        $archivedCourses = $courses
+            ->filter(fn (Course $course) => $course->academicSession?->status === 'terminee')
+            ->values();
 
-        return view('teacher.courses.index', compact('courses', 'courseSessions'));
+        return view('teacher.courses.index', compact('activeCourses', 'archivedCourses', 'courseSessions'));
+    }
+
+    public function hideArchived(Course $course): RedirectResponse
+    {
+        $teacherProfile = auth()->user()->teacherProfile;
+
+        if (! $teacherProfile || ($course->enseignant_id !== $teacherProfile->id && $course->teacher_profile_id !== $teacherProfile->id)) {
+            abort(403, 'Accès non autorisé à ce cours.');
+        }
+
+        $course->loadMissing('academicSession');
+        abort_unless($course->academicSession?->status === 'terminee', 403, 'Seuls les cours d’une rentrée terminée peuvent être retirés.');
+
+        DB::table('teacher_hidden_courses')->insertOrIgnore([
+            'teacher_profile_id' => $teacherProfile->id,
+            'course_id' => $course->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->route('teacher.courses.index')
+            ->with('success', 'Le cours a été retiré de votre historique. Il reste disponible dans les autres espaces.');
     }
 
     public function show(Course $course)
@@ -42,6 +73,10 @@ class CourseController extends Controller
         if ($course->enseignant_id !== $teacherProfile?->id && $course->teacher_profile_id !== $teacherProfile?->id) {
             abort(403, 'Accès non autorisé à ce cours.');
         }
+        abort_if(
+            $teacherProfile && ! Course::notHiddenFromTeacher($teacherProfile->id)->whereKey($course->id)->exists(),
+            404
+        );
 
         $course->load(['module', 'academicSession', 'formation', 'salle', 'documents.uploader']);
 
@@ -62,6 +97,7 @@ class CourseController extends Controller
         if (! $teacherProfile || ($course->enseignant_id !== $teacherProfile->id && $course->teacher_profile_id !== $teacherProfile->id)) {
             abort(403, 'Accès non autorisé à ce cours.');
         }
+        abort_unless(Course::notHiddenFromTeacher($teacherProfile->id)->whereKey($course->id)->exists(), 404);
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],

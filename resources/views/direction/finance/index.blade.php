@@ -14,7 +14,7 @@
     <span class="material-symbols-outlined" style="font-size:18px;">account_balance_wallet</span> Finances
 </a>
 <a href="{{ route('direction.alumni-posts.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; {{ request()->routeIs('direction.alumni-posts*') ? 'background:var(--color-primary-container); color:var(--color-on-primary);' : 'color:var(--color-on-surface-variant);' }} text-decoration:none; font-size:0.8125rem; font-weight:700;">
-    <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span> Modération Alumni
+    <span class="material-symbols-outlined" style="font-size:18px;">auto_awesome</span> Alumni disponibles
 </a>
 <a href="{{ route('contact.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; {{ request()->routeIs('contact.*') ? 'background:var(--color-primary-container); color:var(--color-on-primary);' : 'color:var(--color-on-surface-variant);' }} text-decoration:none; font-size:0.8125rem; font-weight:700;">
     <span class="material-symbols-outlined" style="font-size:18px;">mail</span> Contact

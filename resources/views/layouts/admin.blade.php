@@ -17,6 +17,44 @@
 
     @stack('styles')
 </head>
+@php
+    $authUser = auth()->user();
+    $isSuperAdmin = $authUser?->hasRole('administrateur');
+    $isDirectionDaf = $authUser?->hasRole('direction_daf') && ! $isSuperAdmin;
+    $isRaf = $authUser?->hasRole('responsable_administratif_financier') && ! $isSuperAdmin && ! $isDirectionDaf;
+    $isServiceAdmin = $authUser?->hasAnyRole(['responsable_administratif', 'secretaire_administratif', 'charge_scolarite', 'agent_administratif']) && ! $isSuperAdmin && ! $isDirectionDaf && ! $isRaf;
+    $isServiceFinancier = $authUser?->hasAnyRole(['responsable_financier', 'comptable', 'caissier', 'agent_recouvrement']) && ! $isSuperAdmin && ! $isDirectionDaf && ! $isRaf && ! $isServiceAdmin;
+    // DAA — Département des Affaires Académiques
+    $isDirectionDaa = $authUser?->hasRole('direction_daa') && ! $isSuperAdmin;
+    $isRespDaa = $authUser?->hasRole('responsable_daa') && ! $isSuperAdmin && ! $isDirectionDaa;
+    $isRespEtudes = $authUser?->hasRole('responsable_etudes') && ! $isSuperAdmin && ! $isDirectionDaa && ! $isRespDaa;
+    $isRespInsertion = $authUser?->hasRole('responsable_insertion') && ! $isSuperAdmin && ! $isDirectionDaa && ! $isRespDaa;
+    $isSiteAdmin = $authUser?->hasRole('responsable_site') && ! $isSuperAdmin && ! $isDirectionDaf && ! $isRaf && ! $isServiceAdmin && ! $isServiceFinancier && ! $isDirectionDaa && ! $isRespDaa && ! $isRespEtudes && ! $isRespInsertion;
+    $userSiteName = $authUser?->sites->pluck('nom')->first();
+
+    $roleBadge = 'Admin';
+    if ($isSuperAdmin) $roleBadge = 'SuperAdmin';
+    elseif ($isDirectionDaf) $roleBadge = 'DG DAF';
+    elseif ($isRaf) $roleBadge = 'RAF';
+    elseif ($isServiceAdmin) $roleBadge = 'Svc Admin';
+    elseif ($isServiceFinancier) $roleBadge = 'Svc Finance';
+    elseif ($isDirectionDaa) $roleBadge = 'DG DAA';
+    elseif ($isRespDaa) $roleBadge = 'Resp. DAA';
+    elseif ($isRespEtudes) $roleBadge = 'Svc Études';
+    elseif ($isRespInsertion) $roleBadge = 'Svc Insertion';
+    elseif ($isSiteAdmin) $roleBadge = 'Admin Site';
+
+    $sectionLabel = 'Administration Globale';
+    if ($isDirectionDaf) $sectionLabel = 'Supervision DAF Globale';
+    elseif ($isRaf) $sectionLabel = 'DAF Site (' . ($userSiteName ?? 'Local') . ')';
+    elseif ($isServiceAdmin) $sectionLabel = 'Admin Scolarité (' . ($userSiteName ?? 'Local') . ')';
+    elseif ($isServiceFinancier) $sectionLabel = 'Finance & Caisse (' . ($userSiteName ?? 'Local') . ')';
+    elseif ($isDirectionDaa) $sectionLabel = 'Affaires Académiques — Global';
+    elseif ($isRespDaa) $sectionLabel = 'DAA (' . ($userSiteName ?? 'Local') . ')';
+    elseif ($isRespEtudes) $sectionLabel = 'Pédagogie (' . ($userSiteName ?? 'Local') . ')';
+    elseif ($isRespInsertion) $sectionLabel = 'Insertion (' . ($userSiteName ?? 'Local') . ')';
+    elseif ($isSiteAdmin) $sectionLabel = 'Périmètre Local (' . ($userSiteName ?? 'Site') . ')';
+@endphp
 <body style="background-color: var(--color-background); color: var(--color-on-surface);">
 
     {{-- ══════════════════════════════════════════════════
@@ -35,7 +73,9 @@
                 <div style="display:flex; flex-direction:column;">
                     <div style="display:flex; align-items:center; gap:0.375rem;">
                         <span style="font-size:0.6875rem; font-weight:700; padding:0.125rem 0.375rem; border-radius:9999px;
-                                     background:var(--color-secondary-container); color:var(--color-on-secondary-fixed); text-transform:uppercase; line-height:1;">Admin</span>
+                                     background:var(--color-secondary-container); color:var(--color-on-secondary-fixed); text-transform:uppercase; line-height:1;">
+                            {{ $roleBadge }}
+                        </span>
                     </div>
                     <span style="font-size:0.6875rem; font-weight:700; letter-spacing:0.15em; color:var(--color-primary-container); text-transform:uppercase; margin-top:2px;">CONNECT</span>
                 </div>
@@ -43,7 +83,9 @@
 
             {{-- Label section --}}
             <div style="padding:0.5rem 1rem;">
-                <span style="padding:0 0.75rem; font-size:0.6875rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Navigation Générale</span>
+                <span style="padding:0 0.75rem; font-size:0.6875rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">
+                    {{ $sectionLabel }}
+                </span>
             </div>
 
             {{-- Navigation --}}
@@ -52,75 +94,397 @@
                 {{-- Tableau de bord --}}
                 <x-admin.nav-link route="admin.dashboard" icon="grid_view" label="Tableau de bord" />
 
-                {{-- Administration (groupe avec sous-items) --}}
-                <x-admin.nav-group label="Administration" icon="admin_panel_settings">
-                    <x-admin.nav-sub-link route="admin.users.index"    label="Utilisateurs" />
-                    <x-admin.nav-sub-link route="admin.students.index" label="Étudiants" />
-                    <x-admin.nav-sub-link route="admin.parents.index"  label="Parents" />
-                    <x-admin.nav-sub-link route="admin.teachers.index" label="Enseignants" />
-                </x-admin.nav-group>
+                @if($isDirectionDaf)
+                    {{-- ── 1. DG DAF : Supervision globale ── --}}
+                    <x-admin.nav-group label="Supervision Financière" icon="payments">
+                        <x-admin.nav-sub-link route="admin.fees.index"         label="Frais de scolarité" />
+                        <x-admin.nav-sub-link route="admin.payments.index"     label="Paiements & Validation" />
+                        <x-admin.nav-sub-link route="admin.discounts.index"    label="Bourses / Réductions" />
+                        <x-admin.nav-sub-link route="admin.expenses.index"     label="Dépenses & Achats" />
+                    </x-admin.nav-group>
 
-                {{-- Académique --}}
-                <x-admin.nav-group label="Académique" icon="school">
-                    <x-admin.nav-sub-link route="admin.formations.index"   label="Formations" />
-                    <x-admin.nav-sub-link route="admin.sessions.index"     label="Rentrées" />
-                    <x-admin.nav-sub-link route="admin.enrollments.index"  label="Inscriptions" />
-                    <x-admin.nav-sub-link route="admin.modules.index"      label="Modules" />
-                    <x-admin.nav-sub-link route="admin.courses.index"      label="Cours" />
-                    <x-admin.nav-sub-link route="admin.rooms.index"        label="Salles" />
-                    <x-admin.nav-sub-link route="admin.evaluations.index"  label="Évaluations" />
-                    <x-admin.nav-sub-link route="admin.grades.index"       label="Notes" />
-                    <x-admin.nav-sub-link route="admin.attendance.index"   label="Présences" />
-                </x-admin.nav-group>
+                    <x-admin.nav-group label="Supervision Administrative" icon="school">
+                        <x-admin.nav-sub-link route="admin.sessions.index"     label="Rentrées académiques" />
+                        <x-admin.nav-sub-link route="admin.enrollments.index"  label="Inscriptions" />
+                        <x-admin.nav-sub-link route="admin.students.index"     label="Dossiers étudiants" />
+                        <x-admin.nav-sub-link route="admin.documents.index"    label="Documents & Pièces" />
+                    </x-admin.nav-group>
 
-                {{-- Résultats --}}
-                <x-admin.nav-group label="Résultats" icon="analytics">
-                    <x-admin.nav-sub-link route="admin.results.index" label="Moyennes" />
-                    <x-admin.nav-sub-link route="admin.bulletins.index" label="Bulletins" />
-                </x-admin.nav-group>
+                    <x-admin.nav-group label="Rapports & Clôture" icon="analytics">
+                        <x-admin.nav-sub-link route="admin.payments.print"     label="Journal des versements" />
+                    </x-admin.nav-group>
 
-                {{-- Documents --}}
-                <x-admin.nav-link route="admin.documents.index" icon="folder" label="Documents" />
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
 
-                {{-- Finance --}}
-                <x-admin.nav-group label="Finance" icon="payments">
-                    <x-admin.nav-sub-link route="admin.fees.index"         label="Frais de scolarité" />
-                    <x-admin.nav-sub-link route="admin.payments.index"     label="Paiements" />
-                    <x-admin.nav-sub-link route="admin.discounts.index"    label="Bourses / Réductions" />
-                    <x-admin.nav-sub-link route="admin.expenses.index"     label="Dépenses" />
-                </x-admin.nav-group>
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
 
-                {{-- Organisation --}}
-                <x-admin.nav-group label="Organisation" icon="corporate_fare">
-                    <x-admin.nav-sub-link route="admin.change-requests.index"  label="Demandes de modification" />
-                    <x-admin.nav-sub-link route="admin.partnerships.index"   label="Partenariats" />
-                    <x-admin.nav-sub-link route="admin.alumnis.index"        label="Alumni / Diplômés" />
-                </x-admin.nav-group>
+                @elseif($isRaf)
+                    {{-- ── 2. RAF : Supervision Administrative & Financière du site ── --}}
+                    <x-admin.nav-group label="Service Administratif" icon="school">
+                        <x-admin.nav-sub-link route="admin.sessions.index"     label="Rentrées du site" />
+                        <x-admin.nav-sub-link route="admin.enrollments.index"  label="Inscriptions du site" />
+                        <x-admin.nav-sub-link route="admin.students.index"     label="Dossiers étudiants" />
+                        <x-admin.nav-sub-link route="admin.documents.index"    label="Documents du site" />
+                        <x-admin.nav-sub-link route="admin.rooms.index"        label="Salles du site" />
+                    </x-admin.nav-group>
 
-                {{-- Notifications --}}
-                <a href="{{ route('admin.notifications.index') }}"
-                   style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
-                          color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
-                   onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
-                   onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
-                    <div style="display:flex; align-items:center; gap:0.75rem;">
-                        <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
-                        <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
-                    </div>
-                    @if(($unreadNotifications ?? 0) > 0)
-                    <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
-                                 background:var(--color-primary-container); color:var(--color-on-primary);">
-                        {{ $unreadNotifications }}
-                    </span>
-                    @endif
-                </a>
+                    <x-admin.nav-group label="Service Financier" icon="payments">
+                        <x-admin.nav-sub-link route="admin.fees.index"         label="Frais de scolarité" />
+                        <x-admin.nav-sub-link route="admin.payments.index"     label="Paiements & Caisse" />
+                        <x-admin.nav-sub-link route="admin.expenses.index"     label="Dépenses du site" />
+                        <x-admin.nav-sub-link route="admin.discounts.index"    label="Bourses / Réductions" />
+                    </x-admin.nav-group>
 
-                {{-- Contact --}}
-                <x-admin.nav-link route="admin.contact.index" icon="mail" label="Messages de contact" />
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
 
-                {{-- Paramètres --}}
-                <x-admin.nav-link route="admin.settings.index" icon="settings" label="Paramètres" />
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
 
+                @elseif($isServiceAdmin)
+                    {{-- ── 3. Service administratif : Inscriptions, Dossiers, Documents ── --}}
+                    <x-admin.nav-group label="Scolarité & Dossiers" icon="school">
+                        <x-admin.nav-sub-link route="admin.sessions.index"     label="Rentrées" />
+                        <x-admin.nav-sub-link route="admin.enrollments.index"  label="Inscriptions" />
+                        <x-admin.nav-sub-link route="admin.students.index"     label="Dossiers étudiants" />
+                        <x-admin.nav-sub-link route="admin.documents.index"    label="Documents & Attestations" />
+                        <x-admin.nav-sub-link route="admin.rooms.index"        label="Salles" />
+                    </x-admin.nav-group>
+
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
+
+                @elseif($isServiceFinancier)
+                    {{-- ── 4. Service financier : Frais, Caisse, Dépenses ── --}}
+                    <x-admin.nav-group label="Caisse & Recouvrement" icon="payments">
+                        <x-admin.nav-sub-link route="admin.fees.index"         label="Frais de scolarité" />
+                        <x-admin.nav-sub-link route="admin.payments.index"     label="Paiements & Encaissements" />
+                        <x-admin.nav-sub-link route="admin.expenses.index"     label="Dépenses" />
+                        <x-admin.nav-sub-link route="admin.discounts.index"    label="Bourses & Réductions" />
+                    </x-admin.nav-group>
+
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
+
+                @elseif($isDirectionDaa)
+                    {{-- ── 5. DG DAA : Supervision académique globale + catalogue ── --}}
+                    <x-admin.nav-group label="Catalogue Commun" icon="library_books">
+                        <x-admin.nav-sub-link route="admin.formations.index"  label="Formations" />
+                        <x-admin.nav-sub-link route="admin.modules.index"     label="Modules" />
+                    </x-admin.nav-group>
+
+                    <x-admin.nav-group label="Supervision Pédagogique" icon="school">
+                        <x-admin.nav-sub-link route="admin.sessions.index"    label="Rentrées académiques" />
+                        <x-admin.nav-sub-link route="admin.courses.index"     label="Cours" />
+                        <x-admin.nav-sub-link route="admin.evaluations.index" label="Évaluations" />
+                        <x-admin.nav-sub-link route="admin.grades.index"      label="Notes" />
+                        <x-admin.nav-sub-link route="admin.attendance.index"  label="Présences" />
+                        <x-admin.nav-sub-link route="admin.results.index"     label="Résultats & Moyennes" />
+                        <x-admin.nav-sub-link route="admin.bulletins.index"   label="Bulletins" />
+                    </x-admin.nav-group>
+
+                    <x-admin.nav-group label="Insertion & Alumni" icon="work">
+                        <x-admin.nav-sub-link route="admin.alumnis.index"     label="Alumni & Diplômés" />
+                        <x-admin.nav-sub-link route="admin.partnerships.index" label="Partenariats" />
+                    </x-admin.nav-group>
+
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
+
+                @elseif($isRespDaa)
+                    {{-- ── 6. Responsable DAA : supervision pédagogie + insertion sur son site ── --}}
+                    <x-admin.nav-group label="Catalogue (lecture)" icon="library_books">
+                        <x-admin.nav-sub-link route="admin.formations.index"  label="Formations" />
+                        <x-admin.nav-sub-link route="admin.modules.index"     label="Modules" />
+                    </x-admin.nav-group>
+
+                    <x-admin.nav-group label="Pédagogie du site" icon="school">
+                        <x-admin.nav-sub-link route="admin.sessions.index"    label="Rentrées du site" />
+                        <x-admin.nav-sub-link route="admin.courses.index"     label="Cours" />
+                        <x-admin.nav-sub-link route="admin.evaluations.index" label="Évaluations" />
+                        <x-admin.nav-sub-link route="admin.grades.index"      label="Notes" />
+                        <x-admin.nav-sub-link route="admin.attendance.index"  label="Présences" />
+                        <x-admin.nav-sub-link route="admin.results.index"     label="Résultats" />
+                        <x-admin.nav-sub-link route="admin.bulletins.index"   label="Bulletins" />
+                    </x-admin.nav-group>
+
+                    <x-admin.nav-group label="Insertion du site" icon="work">
+                        <x-admin.nav-sub-link route="admin.alumnis.index"     label="Alumni" />
+                        <x-admin.nav-sub-link route="admin.partnerships.index" label="Partenariats" />
+                    </x-admin.nav-group>
+
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
+
+                @elseif($isRespEtudes)
+                    {{-- ── 7. Responsable Études : pédagogie site (sans insertion) ── --}}
+                    <x-admin.nav-group label="Catalogue (lecture)" icon="library_books">
+                        <x-admin.nav-sub-link route="admin.formations.index"  label="Formations" />
+                        <x-admin.nav-sub-link route="admin.modules.index"     label="Modules" />
+                    </x-admin.nav-group>
+
+                    <x-admin.nav-group label="Gestion pédagogique" icon="school">
+                        <x-admin.nav-sub-link route="admin.sessions.index"    label="Rentrées" />
+                        <x-admin.nav-sub-link route="admin.courses.index"     label="Cours" />
+                        <x-admin.nav-sub-link route="admin.evaluations.index" label="Évaluations" />
+                        <x-admin.nav-sub-link route="admin.grades.index"      label="Notes" />
+                        <x-admin.nav-sub-link route="admin.attendance.index"  label="Présences" />
+                        <x-admin.nav-sub-link route="admin.results.index"     label="Résultats" />
+                        <x-admin.nav-sub-link route="admin.bulletins.index"   label="Bulletins" />
+                    </x-admin.nav-group>
+
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
+
+                @elseif($isRespInsertion)
+                    {{-- ── 8. Responsable Insertion : alumni + partenariats site ── --}}
+                    <x-admin.nav-group label="Catalogue (lecture)" icon="library_books">
+                        <x-admin.nav-sub-link route="admin.formations.index"  label="Formations" />
+                        <x-admin.nav-sub-link route="admin.modules.index"     label="Modules" />
+                    </x-admin.nav-group>
+
+                    <x-admin.nav-group label="Insertion Professionnelle" icon="work">
+                        <x-admin.nav-sub-link route="admin.alumnis.index"     label="Alumni & Diplômés" />
+                        <x-admin.nav-sub-link route="admin.partnerships.index" label="Partenariats" />
+                    </x-admin.nav-group>
+
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
+
+                @elseif($isSiteAdmin)
+                    {{-- ── Menu exclusif Administrateur de site (Section 9) ── --}}
+                    <x-admin.nav-link route="admin.users.index" icon="group" label="Utilisateurs de mon site" />
+                    <x-admin.nav-link route="admin.rooms.index" icon="meeting_room" label="Salles du site" />
+
+                    {{-- Notifications --}}
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
+                    {{-- Paramètres locaux --}}
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
+                @else
+                    {{-- ── Menu SuperAdmin (Section 9) ── --}}
+                    <x-admin.nav-group label="Plateforme" icon="admin_panel_settings">
+                        <x-admin.nav-sub-link route="admin.users.index"       label="Utilisateurs" />
+                        <x-admin.nav-sub-link route="admin.sites.index"       label="Sites IFAM" />
+                        <x-admin.nav-sub-link route="admin.roles.index"       label="Rôles & Permissions" />
+                        <x-admin.nav-sub-link route="admin.departments.index" label="Départements" />
+                        <x-admin.nav-sub-link route="admin.services.index"    label="Services" />
+                        <x-admin.nav-sub-link route="admin.rooms.index"       label="Salles" />
+                    </x-admin.nav-group>
+
+                    {{-- Dossiers Métier --}}
+                    <x-admin.nav-group label="Dossiers Métier" icon="folder_shared">
+                        <x-admin.nav-sub-link route="admin.students.index" label="Étudiants" />
+                        <x-admin.nav-sub-link route="admin.parents.index"  label="Parents" />
+                        <x-admin.nav-sub-link route="admin.teachers.index" label="Enseignants" />
+                    </x-admin.nav-group>
+
+                    {{-- Académique --}}
+                    <x-admin.nav-group label="Académique" icon="school">
+                        <x-admin.nav-sub-link route="admin.formations.index"   label="Formations" />
+                        <x-admin.nav-sub-link route="admin.sessions.index"     label="Rentrées" />
+                        <x-admin.nav-sub-link route="admin.enrollments.index"  label="Inscriptions" />
+                        <x-admin.nav-sub-link route="admin.modules.index"      label="Modules" />
+                        <x-admin.nav-sub-link route="admin.courses.index"      label="Cours" />
+                        <x-admin.nav-sub-link route="admin.evaluations.index"  label="Évaluations" />
+                        <x-admin.nav-sub-link route="admin.grades.index"       label="Notes" />
+                        <x-admin.nav-sub-link route="admin.attendance.index"   label="Présences" />
+                    </x-admin.nav-group>
+
+                    {{-- Résultats --}}
+                    <x-admin.nav-group label="Résultats" icon="analytics">
+                        <x-admin.nav-sub-link route="admin.results.index" label="Moyennes" />
+                        <x-admin.nav-sub-link route="admin.bulletins.index" label="Bulletins" />
+                    </x-admin.nav-group>
+
+                    {{-- Documents --}}
+                    <x-admin.nav-link route="admin.documents.index" icon="folder" label="Documents" />
+
+                    {{-- Finance --}}
+                    <x-admin.nav-group label="Finance" icon="payments">
+                        <x-admin.nav-sub-link route="admin.fees.index"         label="Frais de scolarité" />
+                        <x-admin.nav-sub-link route="admin.payments.index"     label="Paiements" />
+                        <x-admin.nav-sub-link route="admin.discounts.index"    label="Bourses / Réductions" />
+                        <x-admin.nav-sub-link route="admin.expenses.index"     label="Dépenses" />
+                    </x-admin.nav-group>
+
+                    {{-- Organisation --}}
+                    <x-admin.nav-group label="Organisation" icon="corporate_fare">
+                        <x-admin.nav-sub-link route="admin.change-requests.index"  label="Demandes de modification" />
+                        <x-admin.nav-sub-link route="admin.partnerships.index"   label="Partenariats" />
+                        <x-admin.nav-sub-link route="admin.alumnis.index"        label="Alumni / Diplômés" />
+                    </x-admin.nav-group>
+
+                    {{-- Notifications --}}
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
+                    {{-- Contact --}}
+                    <x-admin.nav-link route="admin.contact.index" icon="mail" label="Messages de contact" />
+
+                    {{-- Paramètres globaux --}}
+                    <x-admin.nav-group label="Paramétrage" icon="settings">
+                        <x-admin.nav-sub-link route="admin.sites.index" label="Sites IFAM" />
+                        <x-admin.nav-sub-link route="admin.settings.index" label="Mon profil" />
+                    </x-admin.nav-group>
+                @endif
+
+                @if(auth()->user()?->canAccessServiceReports())
+                    <x-admin.nav-link route="service.reports.index" icon="assignment" label="Rapports au Directeur" />
+                @endif
             </nav>
         </div>
 
@@ -131,10 +495,10 @@
                 <span class="material-symbols-outlined" style="color:var(--color-primary-container); font-size:24px;">verified</span>
                 <div>
                     <div style="font-size:0.75rem; font-weight:700; color:var(--color-on-surface);">
-                        {{ $activeSession->name ?? 'Aucune session active' }}
+                        {{ $activeSession->name ?? 'Aucune rentrée active' }}
                     </div>
                     <div style="font-size:0.6875rem; color:var(--color-on-surface-variant);">
-                        IFAM Cotonou • {{ $activeSession ? 'Actif' : 'Inactif' }}
+                        {{ $userSiteName ? 'IFAM • ' . $userSiteName : 'IFAM Général' }} • {{ $activeSession ? 'Actif' : 'Inactif' }}
                     </div>
                 </div>
             </div>
@@ -204,7 +568,9 @@
                         <div style="font-size:0.875rem; font-weight:700; color:var(--color-on-surface); line-height:1.2;">
                             {{ auth()->user()->first_name ?? '' }} {{ auth()->user()->last_name ?? 'Administrateur' }}
                         </div>
-                        <div style="font-size:0.6875rem; color:var(--color-on-surface-variant);">Administrateur Général</div>
+                        <div style="font-size:0.6875rem; color:var(--color-on-surface-variant);">
+                            {{ $isSuperAdmin ? 'Administrateur Général' : ($isSiteAdmin ? 'Administrateur de Site (' . ($userSiteName ?? 'Local') . ')' : 'Administration') }}
+                        </div>
                     </div>
                     @php $authUser = auth()->user(); @endphp
                     @if($authUser->photo_path)

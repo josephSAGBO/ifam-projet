@@ -8,11 +8,16 @@ use App\Models\Course;
 use App\Models\Evaluation;
 use App\Models\Grade;
 use App\Models\StudentProfile;
+use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class GradeController extends Controller
 {
+    public function __construct(
+        protected NotificationService $notificationService
+    ) {}
+
     /** Note maximale fixe pour tous les contrôles continus. */
     private const NOTE_MAX = 20;
 
@@ -29,14 +34,16 @@ class GradeController extends Controller
         $coursesQuery = Course::where(function ($q) use ($teacherProfile) {
             $q->where('enseignant_id', $teacherProfile->id)
                 ->orWhere('teacher_profile_id', $teacherProfile->id);
-        })
+        })->notHiddenFromTeacher($teacherProfile->id)
             ->with('module');
         if (! $history) {
             $coursesQuery->where('statut', 'en_cours');
+            $coursesQuery->whereHas('academicSession', fn ($query) => $query->where('status', '!=', 'terminee'));
         } else {
             $coursesQuery->where(function ($query) {
                 $query->where('statut', 'termine')
-                    ->orWhereHas('evaluations', fn ($evaluations) => $evaluations->where('statut', 'cloturee'));
+                    ->orWhereHas('evaluations', fn ($evaluations) => $evaluations->where('statut', 'cloturee'))
+                    ->orWhereHas('academicSession', fn ($session) => $session->where('status', 'terminee'));
             });
         }
         $courses = $coursesQuery->get();
@@ -62,15 +69,17 @@ class GradeController extends Controller
             $courseQuery = Course::where(function ($q) use ($teacherProfile) {
                 $q->where('enseignant_id', $teacherProfile->id)
                     ->orWhere('teacher_profile_id', $teacherProfile->id);
-            })
+            })->notHiddenFromTeacher($teacherProfile->id)
                 ->where('id', $courseId)
                 ->with(['module', 'formation']);
             if (! $history) {
                 $courseQuery->where('statut', 'en_cours');
+                $courseQuery->whereHas('academicSession', fn ($query) => $query->where('status', '!=', 'terminee'));
             } else {
                 $courseQuery->where(function ($query) {
                     $query->where('statut', 'termine')
-                        ->orWhereHas('evaluations', fn ($evaluations) => $evaluations->where('statut', 'cloturee'));
+                        ->orWhereHas('evaluations', fn ($evaluations) => $evaluations->where('statut', 'cloturee'))
+                        ->orWhereHas('academicSession', fn ($session) => $session->where('status', 'terminee'));
                 });
             }
             $course = $courseQuery->firstOrFail();
@@ -114,8 +123,9 @@ class GradeController extends Controller
         $course = Course::where(function ($q) use ($teacherProfile) {
             $q->where('enseignant_id', $teacherProfile->id)
                 ->orWhere('teacher_profile_id', $teacherProfile->id);
-        })->findOrFail($validated['course_id']);
-        abort_unless($course->statut === 'en_cours', 403, 'Ce cours est terminé.');
+        })->notHiddenFromTeacher($teacherProfile->id)->findOrFail($validated['course_id']);
+        $course->loadMissing('academicSession');
+        abort_unless($course->statut === 'en_cours' && $course->academicSession?->status !== 'terminee', 403, 'Ce cours est terminé.');
 
         Evaluation::create([
             'cours_id' => $course->id,
@@ -155,8 +165,9 @@ class GradeController extends Controller
         $course = Course::where(function ($q) use ($teacherProfile) {
             $q->where('enseignant_id', $teacherProfile->id)
                 ->orWhere('teacher_profile_id', $teacherProfile->id);
-        })->findOrFail($request->course_id);
-        abort_unless($course->statut === 'en_cours', 403, 'Ce cours est terminé.');
+        })->notHiddenFromTeacher($teacherProfile->id)->findOrFail($request->course_id);
+        $course->loadMissing('academicSession');
+        abort_unless($course->statut === 'en_cours' && $course->academicSession?->status !== 'terminee', 403, 'Ce cours est terminé.');
 
         $evaluation = Evaluation::findOrFail($request->evaluation_id);
         abort_unless($evaluation->statut === 'ouverte', 403, 'Cette évaluation est clôturée ou indisponible.');
@@ -176,7 +187,7 @@ class GradeController extends Controller
         }
 
         foreach ($request->grades as $studentProfileId => $data) {
-            Grade::updateOrCreate(
+            $grade = Grade::updateOrCreate(
                 [
                     'evaluation_id' => $request->evaluation_id,
                     'student_profile_id' => $studentProfileId,
@@ -187,6 +198,12 @@ class GradeController extends Controller
                     'comments' => $data['comments'] ?? null,
                 ]
             );
+
+            // Notifier l'étudiant et ses parents si une note réelle est saisie
+            if ($grade->score !== null) {
+                $grade->load(['evaluation', 'studentProfile.user']);
+                $this->notificationService->noteSaisie($grade);
+            }
         }
 
         return redirect()->route('teacher.grades.index', ['course_id' => $request->course_id])
@@ -218,14 +235,15 @@ class GradeController extends Controller
                 $course && (
                     (int) $course->enseignant_id === (int) $teacherProfile->id
                     || (int) $course->teacher_profile_id === (int) $teacherProfile->id
-                ),
+                ) && Course::notHiddenFromTeacher($teacherProfile->id)->whereKey($course->id)->exists(),
                 403,
                 'Cette note ne vous appartient pas.'
             );
         }
 
         if ($course) {
-            abort_unless($course->statut === 'en_cours', 403, 'Ce cours est terminé.');
+            $course->loadMissing('academicSession');
+            abort_unless($course->statut === 'en_cours' && $course->academicSession?->status !== 'terminee', 403, 'Ce cours est terminé.');
         }
 
         $validated = $request->validate([
@@ -239,6 +257,12 @@ class GradeController extends Controller
             'is_absent' => $request->boolean('is_absent'),
             'comments' => $validated['comments'] ?? null,
         ]);
+
+        // Notifier l'étudiant et ses parents si une note réelle est saisie
+        if ($grade->score !== null) {
+            $grade->load(['evaluation', 'studentProfile.user']);
+            $this->notificationService->noteSaisie($grade);
+        }
 
         return redirect()->back()->with('success', 'Note mise à jour.');
     }
@@ -262,11 +286,13 @@ class GradeController extends Controller
             $course && (
                 (int) $course->enseignant_id === (int) $teacherProfile->id
                 || (int) $course->teacher_profile_id === (int) $teacherProfile->id
-            ),
+            ) && Course::notHiddenFromTeacher($teacherProfile->id)->whereKey($course->id)->exists(),
             403,
             'Cette note ne vous appartient pas.'
         );
         abort_unless($course->statut === 'en_cours', 403, 'Ce cours est terminé.');
+        $course->loadMissing('academicSession');
+        abort_unless($course->academicSession?->status !== 'terminee', 403, 'Ce cours est terminé.');
         abort_unless($evaluation->statut === 'ouverte', 403, 'Cette évaluation est clôturée.');
 
         $grade->delete();
@@ -283,6 +309,11 @@ class GradeController extends Controller
         }
 
         $evaluation->load(['module', 'formation', 'academicSession', 'course', 'grades.studentProfile.user']);
+        abort_if(
+            $evaluation->course
+                && ! Course::notHiddenFromTeacher($teacherProfile->id)->whereKey($evaluation->course->id)->exists(),
+            404
+        );
         $students = StudentProfile::whereHas('enrollments', function ($query) use ($evaluation) {
             $query->where('formation_id', $evaluation->formation_id)
                 ->where('academic_session_id', $evaluation->session_id)
@@ -293,7 +324,9 @@ class GradeController extends Controller
             ->sortBy(fn (StudentProfile $student) => $student->user->last_name.' '.$student->user->first_name)
             ->values();
         $grades = $evaluation->grades->keyBy('student_profile_id');
-        $isReadOnly = $evaluation->statut !== 'ouverte' || $evaluation->course?->statut === 'termine';
+        $isReadOnly = $evaluation->statut !== 'ouverte'
+            || $evaluation->course?->statut === 'termine'
+            || $evaluation->academicSession?->status === 'terminee';
 
         return view('teacher.grades.assigned', compact('evaluation', 'students', 'grades', 'isReadOnly'));
     }
@@ -310,6 +343,16 @@ class GradeController extends Controller
             ! $evaluation->course || $evaluation->course->statut === 'en_cours',
             403,
             'Le cours lié à ce devoir est terminé.'
+        );
+        abort_unless(
+            ! $evaluation->course || $evaluation->course->academicSession?->status !== 'terminee',
+            403,
+            'La rentrée du cours est terminée.'
+        );
+        abort_unless(
+            ! $evaluation->course
+                || Course::notHiddenFromTeacher($teacherProfile->id)->whereKey($evaluation->course->id)->exists(),
+            404
         );
 
         $validated = $request->validate([
@@ -342,10 +385,16 @@ class GradeController extends Controller
                 continue;
             }
 
-            Grade::updateOrCreate(
+            $grade = Grade::updateOrCreate(
                 ['evaluation_id' => $evaluation->id, 'student_profile_id' => $studentProfileId],
                 ['score' => $isAbsent ? null : $score, 'is_absent' => $isAbsent, 'comments' => $comments],
             );
+
+            // Notifier l'étudiant et ses parents si une note réelle est saisie
+            if ($grade->score !== null) {
+                $grade->load(['evaluation', 'studentProfile.user']);
+                $this->notificationService->noteSaisie($grade);
+            }
         }
 
         return redirect()->route('teacher.grades.assigned.show', $evaluation)

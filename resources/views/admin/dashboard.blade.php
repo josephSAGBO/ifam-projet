@@ -2,6 +2,424 @@
 @section('title', 'Tableau de bord')
 @section('content')
 
+@if($isDirectionDaf)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — Supervision DAF Globale
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<section style="margin-bottom:1.5rem;">
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#10b981;">account_balance</span>
+        Supervision Financière
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Revenus validés', 'value' => number_format($financialSupervision['totalRevenue'], 0, '.', ' ').' FCFA', 'icon' => 'payments', 'color' => '#10b981', 'route' => 'admin.payments.index'],
+            ['label' => 'Revenus ce mois', 'value' => number_format($financialSupervision['revenueThisMonth'], 0, '.', ' ').' FCFA', 'icon' => 'trending_up', 'color' => '#0ea5e9', 'route' => 'admin.payments.index'],
+            ['label' => 'Paiements à valider', 'value' => $financialSupervision['paymentsToValidate'], 'icon' => 'pending_actions', 'color' => '#f59e0b', 'route' => 'admin.payments.index'],
+            ['label' => 'Dépenses & achats', 'value' => number_format($financialSupervision['totalExpenses'], 0, '.', ' ').' FCFA', 'icon' => 'receipt_long', 'color' => '#ef4444', 'route' => 'admin.expenses.index'],
+            ['label' => 'Frais à recouvrer', 'value' => $financialSupervision['feesToRecover'], 'icon' => 'account_balance_wallet', 'color' => '#8b5cf6', 'route' => 'admin.fees.index'],
+            ['label' => 'Bourses / réductions', 'value' => $financialSupervision['discounts'], 'icon' => 'school', 'color' => '#ec4899', 'route' => 'admin.discounts.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+
+<section>
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#6366f1;">school</span>
+        Supervision Administrative
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Rentrées académiques', 'value' => $administrativeSupervision['sessions'], 'detail' => $administrativeSupervision['currentSessions'].' en cours', 'icon' => 'event', 'color' => '#6366f1', 'route' => 'admin.sessions.index'],
+            ['label' => 'Inscriptions', 'value' => $administrativeSupervision['enrollments'], 'detail' => $administrativeSupervision['activeEnrollments'].' actives', 'icon' => 'how_to_reg', 'color' => '#0ea5e9', 'route' => 'admin.enrollments.index'],
+            ['label' => 'Dossiers étudiants', 'value' => $administrativeSupervision['students'], 'detail' => 'Étudiants enregistrés', 'icon' => 'groups', 'color' => '#10b981', 'route' => 'admin.students.index'],
+            ['label' => 'Documents & pièces', 'value' => $administrativeSupervision['documents'], 'detail' => 'Documents enregistrés', 'icon' => 'folder_open', 'color' => '#f59e0b', 'route' => 'admin.documents.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.75rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+            <div style="margin-top:0.25rem; font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $metric['detail'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+@elseif($isDirectionDaa)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — Affaires Académiques
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<section style="margin-bottom:1.5rem;">
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#8b5cf6;">library_books</span>
+        Catalogue Commun
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Formations', 'value' => $catalogueSupervision['formations'], 'icon' => 'school', 'color' => '#6366f1', 'route' => 'admin.formations.index'],
+            ['label' => 'Modules', 'value' => $catalogueSupervision['modules'], 'icon' => 'menu_book', 'color' => '#8b5cf6', 'route' => 'admin.modules.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+
+<section style="margin-bottom:1.5rem;">
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#0ea5e9;">school</span>
+        Supervision Pédagogique
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Sessions académiques', 'value' => $pedagogicalSupervision['sessions'], 'detail' => $pedagogicalSupervision['currentSessions'].' en cours', 'icon' => 'event', 'color' => '#6366f1', 'route' => 'admin.sessions.index'],
+            ['label' => 'Cours', 'value' => $pedagogicalSupervision['courses'], 'detail' => 'Cours planifiés', 'icon' => 'co_present', 'color' => '#0ea5e9', 'route' => 'admin.courses.index'],
+            ['label' => 'Évaluations', 'value' => $pedagogicalSupervision['evaluations'], 'detail' => 'Évaluations enregistrées', 'icon' => 'quiz', 'color' => '#f59e0b', 'route' => 'admin.evaluations.index'],
+            ['label' => 'Notes', 'value' => $pedagogicalSupervision['grades'], 'detail' => 'Notes saisies', 'icon' => 'grade', 'color' => '#10b981', 'route' => 'admin.grades.index'],
+            ['label' => 'Présences', 'value' => $pedagogicalSupervision['attendances'], 'detail' => 'Pointages enregistrés', 'icon' => 'how_to_reg', 'color' => '#14b8a6', 'route' => 'admin.attendance.index'],
+            ['label' => 'Bulletins', 'value' => $pedagogicalSupervision['bulletins'], 'detail' => $pedagogicalSupervision['publishedBulletins'].' publiés', 'icon' => 'description', 'color' => '#ec4899', 'route' => 'admin.bulletins.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+            <div style="margin-top:0.25rem; font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $metric['detail'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+
+<section>
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#f59e0b;">work</span>
+        Insertion & Alumni
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Alumni & diplômés', 'value' => $insertionSupervision['alumni'], 'icon' => 'school', 'color' => '#f59e0b', 'route' => 'admin.alumnis.index'],
+            ['label' => 'Partenariats', 'value' => $insertionSupervision['partnerships'], 'icon' => 'handshake', 'color' => '#ec4899', 'route' => 'admin.partnerships.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+@elseif($isServiceFinancier ?? false)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — Caisse & Recouvrement
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<section>
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#10b981;">payments</span>
+        Caisse & Recouvrement
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Encaissements validés', 'value' => number_format($financialSupervision['totalRevenue'], 0, '.', ' ').' FCFA', 'icon' => 'payments', 'color' => '#10b981', 'route' => 'admin.payments.index'],
+            ['label' => 'Encaissements ce mois', 'value' => number_format($financialSupervision['revenueThisMonth'], 0, '.', ' ').' FCFA', 'icon' => 'trending_up', 'color' => '#0ea5e9', 'route' => 'admin.payments.index'],
+            ['label' => 'Paiements à valider', 'value' => $financialSupervision['paymentsToValidate'], 'icon' => 'pending_actions', 'color' => '#f59e0b', 'route' => 'admin.payments.index'],
+            ['label' => 'Dépenses', 'value' => number_format($financialSupervision['totalExpenses'], 0, '.', ' ').' FCFA', 'icon' => 'receipt_long', 'color' => '#ef4444', 'route' => 'admin.expenses.index'],
+            ['label' => 'Frais à recouvrer', 'value' => $financialSupervision['feesToRecover'], 'icon' => 'account_balance_wallet', 'color' => '#8b5cf6', 'route' => 'admin.fees.index'],
+            ['label' => 'Bourses & réductions', 'value' => $financialSupervision['discounts'], 'icon' => 'school', 'color' => '#ec4899', 'route' => 'admin.discounts.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+@elseif($isServiceEtudes ?? false)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — Études ({{ $dashboardSites->pluck('nom')->join(', ') ?: 'Aucun site associé' }})
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<section>
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#0ea5e9;">school</span>
+        Gestion pédagogique
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Sessions académiques', 'value' => $pedagogicalSupervision['sessions'], 'detail' => $pedagogicalSupervision['currentSessions'].' en cours', 'icon' => 'event', 'color' => '#6366f1', 'route' => 'admin.sessions.index'],
+            ['label' => 'Cours', 'value' => $pedagogicalSupervision['courses'], 'detail' => 'Cours planifiés', 'icon' => 'co_present', 'color' => '#0ea5e9', 'route' => 'admin.courses.index'],
+            ['label' => 'Évaluations', 'value' => $pedagogicalSupervision['evaluations'], 'detail' => 'Évaluations enregistrées', 'icon' => 'quiz', 'color' => '#f59e0b', 'route' => 'admin.evaluations.index'],
+            ['label' => 'Notes', 'value' => $pedagogicalSupervision['grades'], 'detail' => 'Notes saisies', 'icon' => 'grade', 'color' => '#10b981', 'route' => 'admin.grades.index'],
+            ['label' => 'Présences', 'value' => $pedagogicalSupervision['attendances'], 'detail' => 'Pointages enregistrés', 'icon' => 'how_to_reg', 'color' => '#14b8a6', 'route' => 'admin.attendance.index'],
+            ['label' => 'Bulletins', 'value' => $pedagogicalSupervision['bulletins'], 'detail' => $pedagogicalSupervision['publishedBulletins'].' publiés', 'icon' => 'description', 'color' => '#ec4899', 'route' => 'admin.bulletins.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+            <div style="margin-top:0.25rem; font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $metric['detail'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+@elseif($isServiceInsertion ?? false)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — Insertion ({{ $dashboardSites->pluck('nom')->join(', ') ?: 'Aucun site associé' }})
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<section>
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#f59e0b;">work</span>
+        Insertion professionnelle
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Alumni & diplômés', 'value' => $insertionDashboard['alumni'], 'detail' => $insertionDashboard['approvedAlumni'].' approuvés', 'icon' => 'school', 'color' => '#f59e0b', 'route' => 'admin.alumnis.index'],
+            ['label' => 'À approuver', 'value' => $insertionDashboard['pendingAlumni'], 'detail' => 'Profils alumni en attente', 'icon' => 'pending_actions', 'color' => '#ef4444', 'route' => 'admin.alumnis.index'],
+            ['label' => 'Partenariats', 'value' => $insertionDashboard['partnerships'], 'detail' => $insertionDashboard['activePartnerships'].' actifs', 'icon' => 'handshake', 'color' => '#8b5cf6', 'route' => 'admin.partnerships.index'],
+            ['label' => 'Partenariats actifs', 'value' => $insertionDashboard['activePartnerships'], 'detail' => 'Tous types confondus', 'icon' => 'verified', 'color' => '#10b981', 'route' => 'admin.partnerships.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+            <div style="margin-top:0.25rem; font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $metric['detail'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+@elseif($isServiceDaa ?? false)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — DAA ({{ $dashboardSites->pluck('nom')->join(', ') ?: 'Aucun site associé' }})
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<section style="margin-bottom:1.5rem;">
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#0ea5e9;">school</span>
+        Pédagogie du site
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Sessions académiques', 'value' => $pedagogicalSupervision['sessions'], 'detail' => $pedagogicalSupervision['currentSessions'].' en cours', 'icon' => 'event', 'color' => '#6366f1', 'route' => 'admin.sessions.index'],
+            ['label' => 'Cours', 'value' => $pedagogicalSupervision['courses'], 'detail' => 'Cours planifiés', 'icon' => 'co_present', 'color' => '#0ea5e9', 'route' => 'admin.courses.index'],
+            ['label' => 'Évaluations', 'value' => $pedagogicalSupervision['evaluations'], 'detail' => 'Évaluations enregistrées', 'icon' => 'quiz', 'color' => '#f59e0b', 'route' => 'admin.evaluations.index'],
+            ['label' => 'Notes', 'value' => $pedagogicalSupervision['grades'], 'detail' => 'Notes saisies', 'icon' => 'grade', 'color' => '#10b981', 'route' => 'admin.grades.index'],
+            ['label' => 'Présences', 'value' => $pedagogicalSupervision['attendances'], 'detail' => 'Pointages enregistrés', 'icon' => 'how_to_reg', 'color' => '#14b8a6', 'route' => 'admin.attendance.index'],
+            ['label' => 'Bulletins', 'value' => $pedagogicalSupervision['bulletins'], 'detail' => $pedagogicalSupervision['publishedBulletins'].' publiés', 'icon' => 'description', 'color' => '#ec4899', 'route' => 'admin.bulletins.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+            <div style="margin-top:0.25rem; font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $metric['detail'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+
+<section>
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#f59e0b;">work</span>
+        Insertion du site
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Alumni & diplômés', 'value' => $insertionSupervision['alumni'], 'icon' => 'school', 'color' => '#f59e0b', 'route' => 'admin.alumnis.index'],
+            ['label' => 'Partenariats', 'value' => $insertionSupervision['partnerships'], 'icon' => 'handshake', 'color' => '#ec4899', 'route' => 'admin.partnerships.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+@elseif($isServiceAdmin)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — Scolarité & Dossiers
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<section>
+    <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem; display:flex; align-items:center; gap:0.5rem;">
+        <span class="material-symbols-outlined" style="font-size:22px; color:#6366f1;">school</span>
+        Scolarité & Dossiers
+    </h2>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+        @foreach([
+            ['label' => 'Rentrées académiques', 'value' => $administrativeSupervision['sessions'], 'detail' => $administrativeSupervision['currentSessions'].' en cours', 'icon' => 'event', 'color' => '#6366f1', 'route' => 'admin.sessions.index'],
+            ['label' => 'Inscriptions', 'value' => $administrativeSupervision['enrollments'], 'detail' => $administrativeSupervision['activeEnrollments'].' actives', 'icon' => 'how_to_reg', 'color' => '#0ea5e9', 'route' => 'admin.enrollments.index'],
+            ['label' => 'Dossiers étudiants', 'value' => $administrativeSupervision['students'], 'detail' => 'Étudiants du périmètre', 'icon' => 'groups', 'color' => '#10b981', 'route' => 'admin.students.index'],
+            ['label' => 'Documents & attestations', 'value' => $administrativeSupervision['documents'], 'detail' => 'Documents du périmètre', 'icon' => 'folder_open', 'color' => '#f59e0b', 'route' => 'admin.documents.index'],
+            ['label' => 'Salles', 'value' => $administrativeSupervision['rooms'], 'detail' => $administrativeSupervision['activeRooms'].' actives', 'icon' => 'meeting_room', 'color' => '#8b5cf6', 'route' => 'admin.rooms.index'],
+        ] as $metric)
+        <a href="{{ route($metric['route']) }}" style="text-decoration:none; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); transition:transform 0.2s, box-shadow 0.2s;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 16px rgba(11,28,48,0.10)'"
+           onmouseout="this.style.transform=''; this.style.boxShadow='0 1px 6px rgba(11,28,48,0.04)'">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $metric['label'] }}</div>
+                <span class="material-symbols-outlined" style="display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px; border-radius:0.75rem; background:{{ $metric['color'] }}18; color:{{ $metric['color'] }}; font-size:21px;">{{ $metric['icon'] }}</span>
+            </div>
+            <div style="margin-top:0.85rem; font-family:var(--font-display); font-size:1.5rem; font-weight:800; color:var(--color-on-surface);">{{ $metric['value'] }}</div>
+            <div style="margin-top:0.25rem; font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $metric['detail'] }}</div>
+        </a>
+        @endforeach
+    </div>
+</section>
+@elseif($isSiteManager)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — {{ $dashboardSites->pluck('nom')->join(', ') ?: 'Aucun site associé' }}
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+    @foreach([
+        ['label' => 'Utilisateurs', 'value' => $totalUsers, 'icon' => 'group', 'color' => 'var(--color-primary)'],
+        ['label' => 'Comptes actifs', 'value' => $activeUsers, 'icon' => 'verified', 'color' => '#0ea5e9'],
+        ['label' => 'Salles', 'value' => $totalRooms, 'icon' => 'meeting_room', 'color' => '#6366f1'],
+        ['label' => 'Salles actives', 'value' => $activeRooms, 'icon' => 'domain', 'color' => '#10b981'],
+    ] as $kpi)
+    <div style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); display:flex; flex-direction:column; gap:0.75rem;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $kpi['label'] }}</span>
+            <span class="material-symbols-outlined" style="font-size:20px; color:{{ $kpi['color'] }};">{{ $kpi['icon'] }}</span>
+        </div>
+        <div style="font-family:var(--font-display); font-size:2rem; font-weight:800; color:var(--color-on-surface); line-height:1;">{{ $kpi['value'] }}</div>
+    </div>
+    @endforeach
+</div>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.5rem;">
+    <section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+            <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0;">Utilisateurs du site</h2>
+            <a href="{{ route('admin.users.index') }}" style="font-size:0.8125rem; font-weight:600; color:var(--color-primary); text-decoration:none;">Voir la liste →</a>
+        </div>
+        @forelse($siteUsers as $siteUser)
+        <div style="display:flex; justify-content:space-between; gap:1rem; padding:0.75rem 0; border-bottom:1px solid var(--color-surface-container);">
+            <div>
+                <div style="font-weight:600; color:var(--color-on-surface);">{{ $siteUser->full_name }}</div>
+                <div style="font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $siteUser->email }}</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $siteUser->getRoleNames()->join(', ') ?: '—' }}</div>
+                <div style="font-size:0.75rem; font-weight:600; color:{{ $siteUser->is_active ? '#059669' : '#dc2626' }};">{{ $siteUser->is_active ? 'Actif' : 'Inactif' }}</div>
+            </div>
+        </div>
+        @empty
+        <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">Aucun utilisateur associé à ce site.</p>
+        @endforelse
+    </section>
+
+    <section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+            <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0;">Salles du site</h2>
+            <a href="{{ route('admin.rooms.index') }}" style="font-size:0.8125rem; font-weight:600; color:var(--color-primary); text-decoration:none;">Voir la liste →</a>
+        </div>
+        @forelse($rooms as $room)
+        <div style="display:flex; justify-content:space-between; gap:1rem; padding:0.75rem 0; border-bottom:1px solid var(--color-surface-container);">
+            <div>
+                <div style="font-weight:600; color:var(--color-on-surface);">{{ $room->name }}</div>
+                <div style="font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $room->type ?: 'Standard' }} · {{ $room->capacity ?: '—' }} places</div>
+            </div>
+            <div style="font-size:0.75rem; font-weight:600; color:{{ $room->is_active ? '#059669' : '#6b7280' }};">{{ $room->is_active ? 'Active' : 'Inactive' }}</div>
+        </div>
+        @empty
+        <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">Aucune salle associée à ce site.</p>
+        @endforelse
+    </section>
+</div>
+@else
+
 {{-- ══ En-tête ══ --}}
 <div style="margin-bottom:2rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
     <div>
@@ -184,7 +602,7 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
             @php
             $shortcuts = [
-                ['route'=>'admin.students.create',         'icon'=>'school',          'label'=>'Étudiant',       'color'=>'#6366f1'],
+                ['route'=>'admin.users.create',            'icon'=>'school',          'label'=>'Étudiant',       'color'=>'#6366f1'],
                 ['route'=>'admin.teachers.create',         'icon'=>'co_present',      'label'=>'Enseignant',     'color'=>'#10b981'],
                 ['route'=>'admin.fees.index',              'icon'=>'receipt',         'label'=>'Suivi frais',    'color'=>'#f59e0b'],
                 ['route'=>'admin.payments.create',         'icon'=>'payments',        'label'=>'Paiement',       'color'=>'#0ea5e9'],
@@ -261,5 +679,7 @@
         @endif
     </div>
 </div>
+
+@endif
 
 @endsection

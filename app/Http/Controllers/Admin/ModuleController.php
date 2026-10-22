@@ -17,8 +17,16 @@ class ModuleController extends Controller
         return view('admin.modules.index', compact('modules'));
     }
 
+    protected function authorizeManageModules(): void
+    {
+        if (auth()->check() && ! auth()->user()->can('manage modules') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daa'])) {
+            abort(403, 'Accès interdit : la gestion du catalogue partagé des modules est réservée à la Direction Générale et aux administrateurs.');
+        }
+    }
+
     public function create()
     {
+        $this->authorizeManageModules();
         $formations = Formation::where('is_active', true)->orderBy('name')->get();
 
         return view('admin.modules.create', compact('formations'));
@@ -26,6 +34,7 @@ class ModuleController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorizeManageModules();
         $validated = $request->validate([
             'formation_id' => ['required', 'exists:formations,id'],
             'name' => ['required', 'string', 'max:255'],
@@ -50,6 +59,7 @@ class ModuleController extends Controller
 
     public function edit(Module $module)
     {
+        $this->authorizeManageModules();
         $formations = Formation::where('is_active', true)->orderBy('name')->get();
 
         return view('admin.modules.edit', compact('module', 'formations'));
@@ -57,6 +67,7 @@ class ModuleController extends Controller
 
     public function update(Request $request, Module $module)
     {
+        $this->authorizeManageModules();
         $validated = $request->validate([
             'formation_id' => ['required', 'exists:formations,id'],
             'name' => ['required', 'string', 'max:255'],
@@ -86,6 +97,7 @@ class ModuleController extends Controller
 
     public function destroy(Module $module)
     {
+        $this->authorizeManageModules();
         $module->delete();
 
         return redirect()->route('admin.modules.index')

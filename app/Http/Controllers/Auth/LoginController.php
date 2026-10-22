@@ -83,7 +83,26 @@ class LoginController extends Controller
 
     private function redirectByRole(User $user)
     {
-        if ($user->hasRole('administrateur')) {
+        $adminRoles = [
+            'administrateur',
+            'responsable_site',
+            'direction_daf',
+            'responsable_administratif_financier',
+            'responsable_administratif',
+            'secretaire_administratif',
+            'charge_scolarite',
+            'agent_administratif',
+            'responsable_financier',
+            'comptable',
+            'caissier',
+            'agent_recouvrement',
+            'direction_daa',
+            'responsable_daa',
+            'responsable_etudes',
+            'responsable_insertion',
+        ];
+
+        if ($user->hasAnyRole($adminRoles)) {
             return redirect()->route('admin.dashboard');
         }
         if ($user->hasRole('direction')) {

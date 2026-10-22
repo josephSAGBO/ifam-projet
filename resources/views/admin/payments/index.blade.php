@@ -17,6 +17,7 @@
 
 <div class="payment-filters" style="background:var(--color-surface-container-low); padding:1rem 1.5rem; border-radius:1rem; margin-bottom:1.5rem; border:1px solid var(--color-outline-variant);">
     <form action="{{ route('admin.payments.index') }}" method="GET" style="display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap;">
+        @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
         <div>
             <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem;">Étudiant</label>
             <select name="student_id" style="height:38px; padding:0 1rem; border-radius:0.5rem; border:1px solid var(--color-outline-variant); background:var(--color-surface-container-lowest); font-size:0.875rem; color:var(--color-on-surface);">
@@ -92,6 +93,7 @@
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Formation</th>
                     <th style="text-align:right; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Montant versé</th>
                     <th style="text-align:center; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Mode</th>
+                    <th style="text-align:center; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Statut</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Référence</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Enregistré par</th>
                     <th style="padding:0.875rem 1rem;"></th>
@@ -102,6 +104,8 @@
                 $modeLabels = ['especes'=>'Espèces','virement'=>'Virement','carte'=>'Carte','cheque'=>'Chèque','autre'=>'Autre','cash'=>'Espèces','bank_transfer'=>'Virement','card'=>'Carte','check'=>'Chèque','other'=>'Autre'];
                 $modeColors = ['especes'=>'#ecfdf5','virement'=>'#eff6ff','carte'=>'#faf5ff','cheque'=>'#fffbeb','autre'=>'#f3f4f6','cash'=>'#ecfdf5','bank_transfer'=>'#eff6ff','card'=>'#faf5ff','check'=>'#fffbeb','other'=>'#f3f4f6'];
                 $modeText   = ['especes'=>'#065f46','virement'=>'#1e40af','carte'=>'#6b21a8','cheque'=>'#92400e','autre'=>'#374151','cash'=>'#065f46','bank_transfer'=>'#1e40af','card'=>'#6b21a8','check'=>'#92400e','other'=>'#374151'];
+                $canValidate = auth()->user()?->hasRole('administrateur') || auth()->user()?->can('validate financial operations');
+                $canPublishReceipts = auth()->user()?->hasRole('administrateur') || auth()->user()?->can('print receipts');
                 @endphp
                 @foreach($payments as $payment)
                 @php
@@ -139,6 +143,21 @@
                             {{ $modeLabels[$mode] ?? ucfirst($mode) }}
                         </span>
                     </td>
+                    <td style="padding:0.875rem 1rem; text-align:center;">
+                        @if($payment->estValide())
+                            <span style="padding:0.25rem 0.625rem; border-radius:9999px; font-size:0.6875rem; font-weight:700; background:#dcfce7; color:#166534;" title="Validé{{ $payment->validateur ? ' par ' . $payment->validateur->full_name : '' }}">
+                                Validé
+                            </span>
+                        @elseif($payment->estEnAttente())
+                            <span style="padding:0.25rem 0.625rem; border-radius:9999px; font-size:0.6875rem; font-weight:700; background:#fef3c7; color:#92400e;">
+                                En attente
+                            </span>
+                        @else
+                            <span style="padding:0.25rem 0.625rem; border-radius:9999px; font-size:0.6875rem; font-weight:700; background:#fee2e2; color:#991b1b;">
+                                Rejeté
+                            </span>
+                        @endif
+                    </td>
                     <td style="padding:0.875rem 1rem; font-family:monospace; color:var(--color-on-surface-variant);">
                         {{ $payment->reference ?? '—' }}
                     </td>
@@ -146,13 +165,42 @@
                         {{ $payment->enregistrePar->full_name ?? ($payment->enregistrePar->name ?? 'Système') }}
                     </td>
                     <td style="padding:0.875rem 1rem;">
-                        <div style="display:flex; align-items:center; gap:0.5rem; justify-content:flex-end;">
+                        <div style="display:flex; align-items:center; gap:0.375rem; justify-content:flex-end;">
                             <a href="{{ route('admin.payments.receipt', $payment) }}" title="Voir / imprimer le reçu"
                                style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; border-radius:0.5rem; background:var(--color-surface-container); color:var(--color-primary); text-decoration:none;"
                                onmouseover="this.style.background='var(--color-primary-container)'; this.style.color='var(--color-on-primary)'"
                                onmouseout="this.style.background='var(--color-surface-container)'; this.style.color='var(--color-primary)'">
                                 <span class="material-symbols-outlined" style="font-size:18px;">receipt</span>
                             </a>
+                            @if($canPublishReceipts && $payment->receipt_published_at)
+                                <form method="POST" action="{{ route('admin.payments.receipt.unpublish', $payment) }}" style="display:inline;" onsubmit="return confirm('Retirer ce reçu des espaces de l’étudiant et de ses parents ?');">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" title="Retirer la publication du reçu" style="width:34px; height:34px; border-radius:0.5rem; border:none; cursor:pointer; background:#dcfce7; color:#166534;">
+                                        <span class="material-symbols-outlined" style="font-size:18px;">visibility</span>
+                                    </button>
+                                </form>
+                            @elseif($canPublishReceipts && $payment->estValide())
+                                <form method="POST" action="{{ route('admin.payments.receipt.publish', $payment) }}" style="display:inline;">
+                                    @csrf @method('PATCH')
+                                    <button type="submit" title="Publier le reçu dans les espaces étudiant et parent" style="width:34px; height:34px; border-radius:0.5rem; border:none; cursor:pointer; background:#e0f2fe; color:#0369a1;">
+                                        <span class="material-symbols-outlined" style="font-size:18px;">publish</span>
+                                    </button>
+                                </form>
+                            @endif
+                            @if($canValidate && $payment->estEnAttente())
+                                <form method="POST" action="{{ route('admin.payments.validate', $payment) }}" style="display:inline;">
+                                    @csrf @method('PATCH')
+                                    <button type="submit" title="Valider le versement" style="width:34px; height:34px; border-radius:0.5rem; border:none; cursor:pointer; background:#dcfce7; color:#166534;" onmouseover="this.style.background='#bbf7d0'" onmouseout="this.style.background='#dcfce7'">
+                                        <span class="material-symbols-outlined" style="font-size:18px;">check_circle</span>
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ route('admin.payments.reject', $payment) }}" style="display:inline;" onsubmit="return confirm('Confirmer le rejet de ce paiement ?');">
+                                    @csrf @method('PATCH')
+                                    <button type="submit" title="Rejeter le versement" style="width:34px; height:34px; border-radius:0.5rem; border:none; cursor:pointer; background:#fee2e2; color:#991b1b;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
+                                        <span class="material-symbols-outlined" style="font-size:18px;">cancel</span>
+                                    </button>
+                                </form>
+                            @endif
                             <form method="POST" action="{{ route('admin.payments.destroy', $payment) }}" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer ce versement ?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" title="Supprimer" style="width:34px; height:34px; border-radius:0.5rem; border:none; cursor:pointer; background:var(--color-surface-container); color:#dc2626;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='var(--color-surface-container)'">

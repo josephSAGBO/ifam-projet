@@ -17,6 +17,7 @@
 </div>
 
 <form method="GET" action="{{ route('admin.bulletins.index') }}" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; margin-bottom:1.5rem; padding:1.25rem; background:var(--color-surface-container-lowest); border:1px solid var(--color-outline-variant); border-radius:1rem;">
+    @includeWhen($sites->isNotEmpty(), 'admin.partials.site-filter')
     <div>
         <label for="session_id" style="display:block; margin-bottom:0.375rem; font-size:0.75rem; font-weight:700; color:var(--color-on-surface-variant);">Session</label>
         <select id="session_id" name="session_id" onchange="this.form.submit()" style="width:100%; height:42px; border:1px solid var(--color-outline-variant); border-radius:0.5rem; background:var(--color-surface); color:var(--color-on-surface); padding:0 0.75rem;">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\HasSiteFilter;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicSession;
 use App\Models\Enrollment;
@@ -11,12 +12,44 @@ use Illuminate\Http\Request;
 
 class ResultController extends Controller
 {
+    use HasSiteFilter;
+
     public function __construct(protected BulletinService $bulletinService) {}
+
+    /**
+     * IDs des sites gérés par l'utilisateur courant.
+     * null = accès global ; tableau = périmètre restreint.
+     *
+     * @return int[]|null
+     */
+    protected function managedSiteIds(): ?array
+    {
+        $user = auth()->user();
+
+        if ($user && $user->hasAnyRole(['administrateur', 'direction', 'direction_daa'])) {
+            return null; // accès global
+        }
+
+        return $user ? $user->sites()->pluck('sites.id')->all() : [];
+    }
 
     public function index(Request $request)
     {
-        $sessions = AcademicSession::orderByDesc('start_date')->get();
+        ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
+        $managed = $this->managedSiteIds();
+        $sessionsQuery = AcademicSession::orderByDesc('start_date');
+        if ($managed !== null) {
+            $sessionsQuery->whereIn('site_id', $managed);
+        }
+        if ($selectedSiteId !== null) {
+            $sessionsQuery->where('site_id', $selectedSiteId);
+        }
+        $sessions = $sessionsQuery->get();
+
         $selectedSessionId = $request->integer('session_id') ?: null;
+        if ($selectedSessionId && ! $sessions->contains('id', $selectedSessionId)) {
+            $selectedSessionId = null;
+        }
         $selectedFormationId = $request->integer('formation_id') ?: null;
 
         $formations = collect();
@@ -55,7 +88,9 @@ class ResultController extends Controller
             'formations',
             'selectedSessionId',
             'selectedFormationId',
-            'results'
+            'results',
+            'sites',
+            'selectedSiteId'
         ));
     }
 
@@ -66,6 +101,14 @@ class ResultController extends Controller
 
         if (! $selectedSessionId || ! $selectedFormationId) {
             abort(404, 'Session et formation requises pour consulter le détail des résultats.');
+        }
+
+        $managed = $this->managedSiteIds();
+        if ($managed !== null) {
+            $session = AcademicSession::findOrFail($selectedSessionId);
+            if (! in_array($session->site_id, $managed, true)) {
+                abort(403, 'Accès refusé : cette session appartient à un autre site.');
+            }
         }
 
         $formation = Formation::with('modules')->findOrFail($selectedFormationId);

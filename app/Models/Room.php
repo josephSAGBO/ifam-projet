@@ -15,6 +15,8 @@ class Room extends Model
     protected $fillable = [
         'name',
         'site_id',
+        'capacity',
+        'type',
         'description',
         'is_active',
     ];
@@ -22,6 +24,7 @@ class Room extends Model
     protected function casts(): array
     {
         return [
+            'capacity' => 'integer',
             'is_active' => 'boolean',
         ];
     }

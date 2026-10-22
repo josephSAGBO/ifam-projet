@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\HasSiteFilter;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicSession;
 use App\Models\Evaluation;
@@ -13,18 +14,50 @@ use Illuminate\Http\Request;
 
 class GradeController extends Controller
 {
+    use HasSiteFilter;
+
     /**
      * Barème par défaut — toutes les notes sont sur 20.
      */
     private const BAREME = 20;
 
     /**
+     * IDs des sites gérés par l'utilisateur courant.
+     * null = accès global ; tableau = périmètre restreint.
+     *
+     * @return int[]|null
+     */
+    protected function managedSiteIds(): ?array
+    {
+        $user = auth()->user();
+
+        if ($user && $user->hasAnyRole(['administrateur', 'direction', 'direction_daa'])) {
+            return null; // accès global
+        }
+
+        return $user ? $user->sites()->pluck('sites.id')->all() : [];
+    }
+
+    /**
      * Display a listing of evaluations to grade.
      */
     public function index(Request $request)
     {
-        $sessions = AcademicSession::orderByDesc('start_date')->get();
+        ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
+        $managed = $this->managedSiteIds();
+        $sessionsQuery = AcademicSession::orderByDesc('start_date');
+        if ($managed !== null) {
+            $sessionsQuery->whereIn('site_id', $managed);
+        }
+        if ($selectedSiteId !== null) {
+            $sessionsQuery->where('site_id', $selectedSiteId);
+        }
+        $sessions = $sessionsQuery->get();
+
         $selectedSessionId = $request->integer('session_id') ?: null;
+        if ($selectedSessionId && ! $sessions->contains('id', $selectedSessionId)) {
+            $selectedSessionId = null;
+        }
         $selectedFormationId = $request->integer('formation_id') ?: null;
         $selectedModuleId = $request->integer('module_id') ?: null;
         $formations = collect();
@@ -93,6 +126,8 @@ class GradeController extends Controller
             'selectedSessionId',
             'selectedFormationId',
             'selectedModuleId',
+            'sites',
+            'selectedSiteId',
         ));
     }
 
@@ -102,6 +137,14 @@ class GradeController extends Controller
     public function show(Evaluation $grade)
     {
         $grade->load(['course.module', 'course.formation', 'module', 'formation', 'academicSession']);
+
+        $managed = $this->managedSiteIds();
+        if ($managed !== null) {
+            $siteId = $grade->academicSession?->site_id ?? $grade->course?->academicSession?->site_id;
+            if ($siteId !== null && ! in_array($siteId, $managed, true)) {
+                abort(403, 'Accès refusé : cette évaluation appartient à un autre site.');
+            }
+        }
 
         if ($grade->course) {
             $students = $grade->course->etudiantsConcernes();

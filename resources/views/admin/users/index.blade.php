@@ -51,6 +51,25 @@
             </div>
         </div>
 
+        {{-- Filtre site (pour le SuperAdmin) --}}
+        @if($isSuperAdmin && $sites->isNotEmpty())
+        <div>
+            <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem; text-transform:uppercase; letter-spacing:0.06em;">
+                Site
+            </label>
+            <select name="site_id"
+                    style="height:40px; padding:0 2rem 0 0.75rem; border-radius:0.625rem; border:1.5px solid var(--color-outline-variant);
+                           background:var(--color-surface-container-low); font-size:0.875rem; color:var(--color-on-surface); cursor:pointer;">
+                <option value="">Tous les sites</option>
+                @foreach($sites as $site)
+                <option value="{{ $site->id }}" {{ request('site_id') == $site->id ? 'selected' : '' }}>
+                    {{ $site->nom }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+        @endif
+
         {{-- Filtre rôle --}}
         <div>
             <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem; text-transform:uppercase; letter-spacing:0.06em;">
@@ -90,7 +109,7 @@
                            background:var(--color-primary-container); color:var(--color-on-primary); font-size:0.875rem; font-weight:700;">
                 Filtrer
             </button>
-            @if(request()->hasAny(['search','role','status']))
+            @if(request()->hasAny(['search','role','status','site_id']))
             <a href="{{ route('admin.users.index') }}"
                style="height:40px; padding:0 1rem; border-radius:0.625rem; display:inline-flex; align-items:center;
                       background:var(--color-surface-container-high); color:var(--color-on-surface); font-size:0.875rem; text-decoration:none;">
@@ -114,6 +133,7 @@
             <thead>
                 <tr style="background:var(--color-surface-container-low); border-bottom:1px solid var(--color-outline-variant);">
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Utilisateur</th>
+                    <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Site</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Contact</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Rôle</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Statut</th>
@@ -149,6 +169,25 @@
                                 @endif
                             </div>
                         </div>
+                    </td>
+
+                    {{-- Site de rattachement --}}
+                    <td style="padding:0.875rem 1rem;">
+                        @if($user->hasAnyRole(['administrateur', 'direction']) || $user->isDepartmentHead())
+                            <span style="padding:0.25rem 0.5rem; border-radius:0.375rem; font-size:0.75rem; font-weight:600; background:var(--color-surface-container); color:var(--color-on-surface-variant);">
+                                Transversal (Tous)
+                            </span>
+                        @elseif($user->sites->isNotEmpty())
+                            <div style="display:flex; flex-wrap:wrap; gap:0.25rem;">
+                                @foreach($user->sites as $userSite)
+                                    <span style="padding:0.25rem 0.5rem; border-radius:0.375rem; font-size:0.75rem; font-weight:600; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;">
+                                        {{ $userSite->nom }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        @else
+                            <span style="font-size:0.75rem; color:#9ca3af; font-style:italic;">Aucun site</span>
+                        @endif
                     </td>
 
                     {{-- Contact --}}

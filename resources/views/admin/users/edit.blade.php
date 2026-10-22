@@ -183,6 +183,38 @@
             @enderror
         </div>
 
+        {{-- Site de rattachement --}}
+        <div>
+            <label style="display:block; font-size:0.8125rem; font-weight:600; color:var(--color-on-surface); margin-bottom:0.5rem;">
+                Site de rattachement
+            </label>
+            @if($isSuperAdmin)
+                @php $currentSiteId = $user->sites->first()?->id; @endphp
+                <select name="site_id" required
+                        style="width:100%; box-sizing:border-box; height:44px; padding:0 1rem; border-radius:0.75rem;
+                               border:1.5px solid {{ $errors->has('site_id') ? 'var(--color-error)' : 'var(--color-outline-variant)' }};
+                               background:var(--color-surface-container-low); font-size:0.875rem; color:var(--color-on-surface); cursor:pointer;">
+                    <option value="">Sélectionner un site</option>
+                    @foreach($sites as $site)
+                    <option value="{{ $site->id }}" {{ (string) old('site_id', $currentSiteId) === (string) $site->id ? 'selected' : '' }}>
+                        {{ $site->nom }} ({{ $site->ville }})
+                    </option>
+                    @endforeach
+                </select>
+                @error('site_id')
+                <p style="margin:0.375rem 0 0; font-size:0.75rem; color:var(--color-error);">{{ $message }}</p>
+                @enderror
+            @else
+                <div style="height:44px; padding:0 1rem; border-radius:0.75rem; border:1.5px solid var(--color-outline-variant); background:var(--color-surface-container-high); display:flex; align-items:center; font-size:0.875rem; color:var(--color-on-surface); font-weight:600;">
+                    <span class="material-symbols-outlined" style="font-size:18px; color:var(--color-primary); margin-right:0.5rem;">apartment</span>
+                    {{ $user->sites->pluck('nom')->join(', ') ?: 'Site local' }}
+                </div>
+                <p style="margin:0.375rem 0 0; font-size:0.75rem; color:var(--color-on-surface-variant);">
+                    Seul le SuperAdmin peut modifier le site de rattachement.
+                </p>
+            @endif
+        </div>
+
     </div>
 
     {{-- Actions --}}

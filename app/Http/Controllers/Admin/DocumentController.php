@@ -2,19 +2,38 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\HasSiteFilter;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\StudentProfile;
 use App\Models\TeacherProfile;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class DocumentController extends Controller
 {
+    use HasSiteFilter;
+
     public function index(Request $request)
     {
+        ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
         $query = Document::with('uploadedBy');
+
+        if ($selectedSiteId !== null) {
+            $query->whereHasMorph(
+                'documentable',
+                [StudentProfile::class, TeacherProfile::class],
+                function (Builder $ownerQuery, string $type) use ($selectedSiteId): void {
+                    if ($type === StudentProfile::class) {
+                        $ownerQuery->whereHas('enrollments', fn (Builder $q) => $q->where('site_id', $selectedSiteId));
+                    } elseif ($type === TeacherProfile::class) {
+                        $ownerQuery->whereHas('courses.academicSession', fn (Builder $q) => $q->where('site_id', $selectedSiteId));
+                    }
+                }
+            );
+        }
 
         if ($request->filled('type')) {
             $query->where('type', $request->type);
@@ -26,10 +45,10 @@ class DocumentController extends Controller
             $query->where('is_verified', $request->verified === '1');
         }
 
-        $documents = $query->orderBy('created_at', 'desc')->paginate(15);
+        $documents = $query->orderBy('created_at', 'desc')->paginate(15)->withQueryString();
         $typeLabels = Document::typeLabels();
 
-        return view('admin.documents.index', compact('documents', 'typeLabels'));
+        return view('admin.documents.index', compact('documents', 'typeLabels', 'sites', 'selectedSiteId'));
     }
 
     public function create()

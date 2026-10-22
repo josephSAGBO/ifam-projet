@@ -19,7 +19,7 @@
 {{-- Filtres --}}
 <form method="GET" action="{{ route('admin.students.index') }}"
       style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; margin-bottom:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
-    <div style="display:grid; grid-template-columns:1fr auto; gap:0.75rem; align-items:end;">
+    <div style="display:grid; grid-template-columns:1fr @if($sites->isNotEmpty()) auto @endif auto; gap:0.75rem; align-items:end;">
 
         {{-- Recherche --}}
         <div>
@@ -41,14 +41,32 @@
             </div>
         </div>
 
+        @if($sites->isNotEmpty())
+        <div>
+            <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem; text-transform:uppercase; letter-spacing:0.06em;">
+                Site
+            </label>
+            <select name="site_id"
+                    style="height:40px; padding:0 2rem 0 0.75rem; border-radius:0.625rem; border:1.5px solid var(--color-outline-variant);
+                           background:var(--color-surface-container-low); font-size:0.875rem; color:var(--color-on-surface); cursor:pointer;">
+                <option value="">Tous les sites</option>
+                @foreach($sites as $site)
+                <option value="{{ $site->id }}" {{ (string) $selectedSiteId === (string) $site->id ? 'selected' : '' }}>
+                    {{ $site->nom }}
+                </option>
+                @endforeach
+            </select>
+        </div>
+        @endif
+
         {{-- Bouton filtrer --}}
         <div style="display:flex; gap:0.5rem;">
             <button type="submit"
                     style="height:40px; padding:0 1.25rem; border-radius:0.625rem; border:none; cursor:pointer;
                            background:var(--color-primary-container); color:var(--color-on-primary); font-size:0.875rem; font-weight:700;">
-                Rechercher
+                Filtrer
             </button>
-            @if(request()->has('search'))
+            @if(request()->hasAny(['search', 'site_id']))
             <a href="{{ route('admin.students.index') }}"
                style="height:40px; padding:0 1rem; border-radius:0.625rem; display:inline-flex; align-items:center;
                       background:var(--color-surface-container-high); color:var(--color-on-surface); font-size:0.875rem; text-decoration:none;">
@@ -73,6 +91,7 @@
                 <tr style="background:var(--color-surface-container-low); border-bottom:1px solid var(--color-outline-variant);">
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Matricule</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Étudiant</th>
+                    <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Site</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Contact</th>
                     <th style="text-align:left; padding:0.875rem 1rem; font-size:0.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--color-on-surface-variant);">Année d'entrée</th>
                     <th style="padding:0.875rem 1rem;"></th>
@@ -102,6 +121,23 @@
                                 <div style="font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $student->gender ?? '-' }} • {{ $student->birth_date ? $student->birth_date->age . ' ans' : '-' }}</div>
                             </div>
                         </div>
+                    </td>
+
+                    <td style="padding:0.875rem 1rem;">
+                        @php
+                            $studentSites = $student->sites->concat($student->studentProfile?->enrollments->pluck('site')->filter() ?? collect())->unique('id');
+                        @endphp
+                        @if($studentSites->isNotEmpty())
+                            <div style="display:flex; flex-wrap:wrap; gap:0.25rem;">
+                                @foreach($studentSites as $sSite)
+                                    <span style="padding:0.25rem 0.5rem; border-radius:0.375rem; font-size:0.75rem; font-weight:600; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;">
+                                        {{ $sSite->nom }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        @else
+                            <span style="color:var(--color-on-surface-variant); font-size:0.8125rem;">—</span>
+                        @endif
                     </td>
 
                     <td style="padding:0.875rem 1rem; color:var(--color-on-surface-variant);">

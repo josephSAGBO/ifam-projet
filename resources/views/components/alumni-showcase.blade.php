@@ -2,12 +2,21 @@
     'alumnis',
     'title',
     'showAllLink' => true,
+    'featured' => false,
 ])
 
 <section class="student-dashboard-panel" aria-label="{{ $title }}"
-         style="margin-top:1.5rem; background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+         style="margin-top:1.5rem; background:{{ $featured ? 'linear-gradient(135deg, #fff7ed 0%, #fff 55%, #f5f3ff 100%)' : 'var(--color-surface-container-lowest)' }}; border:{{ $featured ? '1px solid #fed7aa' : '1px solid transparent' }}; border-radius:1rem; padding:1.5rem; box-shadow:{{ $featured ? '0 8px 24px rgba(124, 45, 18, 0.08)' : '0 1px 6px rgba(11,28,48,0.04)' }};">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1.25rem;">
-        <h2 style="font-size:1.125rem; font-weight:700; color:var(--color-on-surface); margin:0;">{{ $title }}</h2>
+        <div>
+            @if($featured)
+                <div style="display:flex; align-items:center; gap:0.375rem; margin-bottom:0.3rem; color:#c2410c; font-size:0.6875rem; font-weight:800; text-transform:uppercase; letter-spacing:0.09em;">
+                    <span class="material-symbols-outlined" aria-hidden="true" style="font-size:16px;">auto_awesome</span>
+                    Parcours inspirants
+                </div>
+            @endif
+            <h2 style="font-size:{{ $featured ? '1.25rem' : '1.125rem' }}; font-weight:800; color:var(--color-on-surface); margin:0;">{{ $title }}</h2>
+        </div>
         @if($showAllLink)
             <a href="{{ route('alumni.directory.index') }}"
                style="display:inline-flex; align-items:center; gap:0.375rem; color:var(--color-primary); font-size:0.8125rem; font-weight:700; text-decoration:none;">

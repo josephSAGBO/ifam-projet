@@ -30,7 +30,7 @@ class StudentScheduleDocumentsTest extends TestCase
         $secondFormation = Formation::create(['name' => 'Formation Stylisme']);
         $activeSession = $this->createSession('Session A', '2026-09-01');
         $secondSession = $this->createSession('Session B', '2027-01-01');
-        $completedSession = $this->createSession('Session terminée', '2025-01-01');
+        $completedSession = $this->createSession('Session terminée', '2025-01-01', 'terminee');
         $inactiveSession = $this->createSession('Session inactive', '2025-01-01');
         $firstModule = Module::create(['name' => 'Coupe', 'code' => 'MOD-COUPE']);
         $secondModule = Module::create(['name' => 'Dessin', 'code' => 'MOD-DESSIN']);
@@ -82,6 +82,7 @@ class StudentScheduleDocumentsTest extends TestCase
         $response->assertSee('Cours de coupe');
         $response->assertSee('Cours de dessin');
         $response->assertSee('Cours de coupe ancienne session');
+        $response->assertSee('Historique des cours');
         $response->assertSee('Formation Couture');
         $response->assertSee('Formation Stylisme');
         $response->assertSee('Session A');
@@ -182,12 +183,13 @@ class StudentScheduleDocumentsTest extends TestCase
         return [$user, StudentProfile::create(['user_id' => $user->id])];
     }
 
-    private function createSession(string $name, string $startDate): AcademicSession
+    private function createSession(string $name, string $startDate, string $status = 'en_cours'): AcademicSession
     {
         return AcademicSession::create([
             'name' => $name,
             'start_date' => $startDate,
             'end_date' => date('Y-m-d', strtotime($startDate.' +1 year')),
+            'status' => $status,
         ]);
     }
 

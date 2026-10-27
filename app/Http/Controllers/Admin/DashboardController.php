@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicSession;
 use App\Models\Alumni;
+use App\Models\AlumniPost;
 use App\Models\Attendance;
 use App\Models\BulletinPublication;
 use App\Models\Course;
@@ -21,6 +22,7 @@ use App\Models\Notification;
 use App\Models\Partnership;
 use App\Models\Payment;
 use App\Models\Room;
+use App\Models\Site;
 use App\Models\StudentProfile;
 use App\Models\TeacherProfile;
 use App\Models\User;
@@ -34,6 +36,43 @@ class DashboardController extends Controller
     public function __invoke(Request $request, PaiementService $paiementService)
     {
         $user = $request->user();
+
+        if ($user->hasRole('responsable_commercial')) {
+            $enrollments = Enrollment::query();
+            $recentEnrollments = (clone $enrollments)
+                ->with(['studentProfile.user', 'formation', 'academicSession.site'])
+                ->latest('enrollment_date')
+                ->limit(8)
+                ->get();
+            $enrollmentsBySite = Site::query()
+                ->whereHas('enrollments')
+                ->withCount('enrollments')
+                ->orderByDesc('enrollments_count')
+                ->orderBy('nom')
+                ->get();
+
+            return view('admin.dashboard', [
+                'isDirectionDaf' => false,
+                'isDirectionDaa' => false,
+                'isServiceAdmin' => false,
+                'isServiceFinancier' => false,
+                'isRespCommercial' => true,
+                'commercialSupervision' => [
+                    'totalEnrollments' => (clone $enrollments)->count(),
+                    'enrollmentsThisMonth' => (clone $enrollments)
+                        ->whereMonth('enrollment_date', now()->month)
+                        ->whereYear('enrollment_date', now()->year)
+                        ->count(),
+                    'activeEnrollments' => (clone $enrollments)->where('status', 'active')->count(),
+                    'uniqueStudents' => (clone $enrollments)->distinct('student_profile_id')->count('student_profile_id'),
+                    'completedEnrollments' => (clone $enrollments)->where('status', 'completed')->count(),
+                    'suspendedEnrollments' => (clone $enrollments)->where('status', 'suspended')->count(),
+                ],
+                'enrollmentsBySite' => $enrollmentsBySite,
+                'recentEnrollments' => $recentEnrollments,
+            ]);
+        }
+
         if ($user->hasRole('direction_daf')) {
             $validPayments = Payment::query()->where('status', 'valide');
 
@@ -270,6 +309,33 @@ class DashboardController extends Controller
         if ($user->hasRole('responsable_site')) {
             $dashboardSites = $user->sites()->orderBy('nom')->get(['sites.id', 'sites.nom']);
             $siteIds = $dashboardSites->modelKeys();
+            $siteSessions = AcademicSession::query()->whereIn('site_id', $siteIds);
+            $siteSessionIds = (clone $siteSessions)->select('id');
+            $siteEnrollments = Enrollment::query()->whereIn('site_id', $siteIds);
+            $siteCourses = Course::query()->whereIn('academic_session_id', $siteSessionIds);
+            $siteEvaluations = Evaluation::query()->where(function (Builder $query) use ($siteSessionIds): void {
+                $query->whereIn('session_id', $siteSessionIds)
+                    ->orWhereHas('course', fn (Builder $courseQuery) => $courseQuery->whereIn('academic_session_id', $siteSessionIds));
+            });
+            $siteAttendances = Attendance::query()
+                ->whereHas('course', fn (Builder $query) => $query->whereIn('academic_session_id', $siteSessionIds));
+            $siteValidPayments = Payment::query()
+                ->where('status', 'valide')
+                ->whereHas('enrollment', fn (Builder $query) => $query->whereIn('site_id', $siteIds));
+            $sitePendingPayments = Payment::query()
+                ->where('status', 'en_attente')
+                ->whereHas('enrollment', fn (Builder $query) => $query->whereIn('site_id', $siteIds));
+            $siteExpenses = Expense::query()->whereIn('site_id', $siteIds);
+            $siteAlumnis = Alumni::query()->whereIn('site_id', $siteIds);
+            $sitePartnerships = Partnership::query()->where(function (Builder $query) use ($siteIds): void {
+                if ($siteIds === []) {
+                    $query->whereRaw('1 = 0');
+
+                    return;
+                }
+
+                $query->whereIn('site_id', $siteIds)->orWhereNull('site_id');
+            });
             $siteUsers = User::query()
                 ->whereHas('sites', fn (Builder $query) => $query->whereIn('sites.id', $siteIds))
                 ->with('roles')
@@ -301,6 +367,40 @@ class DashboardController extends Controller
                 'rooms' => $rooms,
                 'totalRooms' => $rooms->count(),
                 'activeRooms' => $rooms->where('is_active', true)->count(),
+                'peopleSupervision' => [
+                    'students' => (clone $siteEnrollments)->distinct('student_profile_id')->count('student_profile_id'),
+                    'teachers' => TeacherProfile::query()
+                        ->whereHas('user.sites', fn (Builder $query) => $query->whereIn('sites.id', $siteIds))
+                        ->count(),
+                ],
+                'academicSupervision' => [
+                    'sessions' => (clone $siteSessions)->count(),
+                    'currentSessions' => (clone $siteSessions)->where('is_current', true)->count(),
+                    'enrollments' => (clone $siteEnrollments)->count(),
+                    'activeEnrollments' => (clone $siteEnrollments)->where('status', 'active')->count(),
+                    'courses' => (clone $siteCourses)->count(),
+                    'evaluations' => (clone $siteEvaluations)->count(),
+                    'attendances' => (clone $siteAttendances)->count(),
+                ],
+                'financialSupervision' => [
+                    'totalRevenue' => (clone $siteValidPayments)->sum('amount_paid'),
+                    'revenueThisMonth' => (clone $siteValidPayments)
+                        ->whereMonth('payment_date', now()->month)
+                        ->whereYear('payment_date', now()->year)
+                        ->sum('amount_paid'),
+                    'paymentsToValidate' => (clone $sitePendingPayments)->count(),
+                    'totalExpenses' => (clone $siteExpenses)->sum('amount'),
+                ],
+                'insertionSupervision' => [
+                    'alumni' => (clone $siteAlumnis)->count(),
+                    'visibleAlumni' => (clone $siteAlumnis)->publiclyVisible()->count(),
+                    'publishedPosts' => AlumniPost::query()
+                        ->where('status', 'published')
+                        ->whereHas('alumni', fn (Builder $query) => $query->whereIn('site_id', $siteIds)->publiclyVisible())
+                        ->count(),
+                    'partnerships' => (clone $sitePartnerships)->count(),
+                    'activePartnerships' => (clone $sitePartnerships)->whereIn('statut', ['Actif', 'actif'])->count(),
+                ],
             ]);
         }
 

@@ -10,6 +10,15 @@
 <a href="{{ route('service.reports.create') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; color:var(--color-on-surface-variant); text-decoration:none; font-size:0.8125rem; font-weight:700;">
     <span class="material-symbols-outlined" style="font-size:18px;">add_circle</span> Nouveau Rapport
 </a>
+@if(auth()->user()->hasRole('responsable_commercial'))
+<a href="{{ route('admin.enrollments.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; color:var(--color-on-surface-variant); text-decoration:none; font-size:0.8125rem; font-weight:700;">
+    <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span> Inscriptions
+</a>
+@elseif(auth()->user()->hasAnyRole(['administrateur', 'direction_daf', 'direction_daa', 'responsable_site', 'responsable_administratif_financier', 'responsable_daa']))
+<a href="{{ route('admin.dashboard') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; color:var(--color-on-surface-variant); text-decoration:none; font-size:0.8125rem; font-weight:700;">
+    <span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span> Administration
+</a>
+@endif
 <a href="{{ route('contact.index') }}" style="display:inline-flex; align-items:center; gap:0.375rem; padding:0.5rem 0.875rem; border-radius:0.625rem; color:var(--color-on-surface-variant); text-decoration:none; font-size:0.8125rem; font-weight:700;">
     <span class="material-symbols-outlined" style="font-size:18px;">mail</span> Contact
 </a>

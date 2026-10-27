@@ -175,7 +175,7 @@
                     ];
                 @endphp
                 @foreach($roles as $role)
-                <option value="{{ $role->name }}" {{ old('role') === $role->name ? 'selected' : '' }}>
+                <option value="{{ $role->name }}" {{ old('role', count($roles) === 1 ? $roles->first()->name : '') === $role->name ? 'selected' : '' }}>
                     {{ $roleLabels[$role->name] ?? ucfirst($role->name) }}
                 </option>
                 @endforeach
@@ -193,7 +193,7 @@
             <label style="display:block; font-size:0.8125rem; font-weight:600; color:var(--color-on-surface); margin-bottom:0.5rem;">
                 Site de rattachement <span style="color:var(--color-error);">*</span>
             </label>
-            @if($isSuperAdmin)
+            @if(!empty($canChooseSite) || $isSuperAdmin)
                 <select name="site_id" id="site_select" required
                         style="width:100%; box-sizing:border-box; height:44px; padding:0 1rem; border-radius:0.75rem;
                                border:1.5px solid {{ $errors->has('site_id') ? 'var(--color-error)' : 'var(--color-outline-variant)' }};

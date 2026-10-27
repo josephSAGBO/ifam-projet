@@ -452,6 +452,9 @@ class DafOrganizationAndSecurityTest extends TestCase
             ->assertSee('Tableau de bord — Cotonou')
             ->assertSee('Utilisateurs du site')
             ->assertSee('Salles du site')
+            ->assertSee('Activité pédagogique')
+            ->assertSee('Suivi financier')
+            ->assertSee('Insertion & partenariats', false)
             ->assertSee('Salle Cotonou - site dashboard')
             ->assertSee('Cotonou')
             ->assertDontSee('Salle Bohicon - site dashboard')
@@ -464,6 +467,11 @@ class DafOrganizationAndSecurityTest extends TestCase
             ->assertViewHas('activeUsers', 6)
             ->assertViewHas('totalRooms', 1)
             ->assertViewHas('activeRooms', 1);
+        $this->assertSame(1, $response->viewData('peopleSupervision')['students']);
+        $this->assertSame(1, $response->viewData('academicSupervision')['sessions']);
+        $this->assertSame(1, $response->viewData('academicSupervision')['enrollments']);
+        $this->assertSame(25000.0, (float) $response->viewData('financialSupervision')['totalRevenue']);
+        $this->assertSame(15000.0, (float) $response->viewData('financialSupervision')['totalExpenses']);
         $this->assertSame([$roomCotonou->id], $response->viewData('rooms')->modelKeys());
         $this->assertNotContains($this->studentUserBohicon->id, $response->viewData('siteUsers')->modelKeys());
         $this->assertArrayNotHasKey('totalRevenue', $response->viewData());

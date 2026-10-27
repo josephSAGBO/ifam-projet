@@ -51,8 +51,8 @@
             </div>
         </div>
 
-        {{-- Filtre site (pour le SuperAdmin) --}}
-        @if($isSuperAdmin && $sites->isNotEmpty())
+        {{-- Filtre site (pour le SuperAdmin et Responsable Commercial) --}}
+        @if(($canFilterSite ?? $isSuperAdmin) && $sites->isNotEmpty())
         <div>
             <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--color-on-surface-variant); margin-bottom:0.375rem; text-transform:uppercase; letter-spacing:0.06em;">
                 Site

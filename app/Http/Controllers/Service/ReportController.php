@@ -55,7 +55,8 @@ class ReportController extends Controller
         $user = auth()->user();
         $assignments = $user->assignments()->with(['serviceProfile', 'site'])->get();
         $services = $user->accessibleServiceProfiles();
-        $sites = $user->sites()->exists() ? $user->sites : Site::active()->get();
+        $isTransversal = $user->hasAnyRole(['administrateur', 'direction', 'direction_daf', 'direction_daa', 'responsable_commercial']);
+        $sites = $isTransversal || ! $user->sites()->exists() ? Site::active()->get() : $user->sites;
 
         return view('service.reports.create', compact('assignments', 'services', 'sites'));
     }

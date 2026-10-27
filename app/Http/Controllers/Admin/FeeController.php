@@ -21,7 +21,7 @@ class FeeController extends Controller
     public function index(Request $request): View
     {
         ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
-        if (auth()->check() && ! auth()->user()->can('view fees') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+        if (auth()->check() && ! auth()->user()->can('view fees') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf', 'responsable_site'])) {
             abort(403, 'Accès interdit : vous n\'avez pas les permissions pour consulter les frais financiers.');
         }
 

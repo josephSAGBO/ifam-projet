@@ -30,6 +30,7 @@
     $isRespEtudes = $authUser?->hasRole('responsable_etudes') && ! $isSuperAdmin && ! $isDirectionDaa && ! $isRespDaa;
     $isRespInsertion = $authUser?->hasRole('responsable_insertion') && ! $isSuperAdmin && ! $isDirectionDaa && ! $isRespDaa;
     $isSiteAdmin = $authUser?->hasRole('responsable_site') && ! $isSuperAdmin && ! $isDirectionDaf && ! $isRaf && ! $isServiceAdmin && ! $isServiceFinancier && ! $isDirectionDaa && ! $isRespDaa && ! $isRespEtudes && ! $isRespInsertion;
+    $isRespCommercial = $authUser?->hasRole('responsable_commercial') && ! $isSuperAdmin && ! $isDirectionDaf && ! $isRaf && ! $isServiceAdmin && ! $isServiceFinancier && ! $isDirectionDaa && ! $isRespDaa && ! $isRespEtudes && ! $isRespInsertion && ! $isSiteAdmin;
     $userSiteName = $authUser?->sites->pluck('nom')->first();
 
     $roleBadge = 'Admin';
@@ -43,6 +44,7 @@
     elseif ($isRespEtudes) $roleBadge = 'Svc Études';
     elseif ($isRespInsertion) $roleBadge = 'Svc Insertion';
     elseif ($isSiteAdmin) $roleBadge = 'Admin Site';
+    elseif ($isRespCommercial) $roleBadge = 'Resp. Commercial';
 
     $sectionLabel = 'Administration Globale';
     if ($isDirectionDaf) $sectionLabel = 'Supervision DAF Globale';
@@ -54,6 +56,7 @@
     elseif ($isRespEtudes) $sectionLabel = 'Pédagogie (' . ($userSiteName ?? 'Local') . ')';
     elseif ($isRespInsertion) $sectionLabel = 'Insertion (' . ($userSiteName ?? 'Local') . ')';
     elseif ($isSiteAdmin) $sectionLabel = 'Périmètre Local (' . ($userSiteName ?? 'Site') . ')';
+    elseif ($isRespCommercial) $sectionLabel = 'Commercial & Inscriptions (Tous sites)';
 @endphp
 <body style="background-color: var(--color-background); color: var(--color-on-surface);">
 
@@ -77,7 +80,7 @@
                             {{ $roleBadge }}
                         </span>
                     </div>
-                    <span style="font-size:0.6875rem; font-weight:700; letter-spacing:0.15em; color:var(--color-primary-container); text-transform:uppercase; margin-top:2px;">CONNECT</span>
+                    <span class="brand-name">My<span class="brand-accent">IFAM</span></span>
                 </div>
             </div>
 
@@ -246,6 +249,7 @@
                     <x-admin.nav-group label="Insertion & Alumni" icon="work">
                         <x-admin.nav-sub-link route="admin.alumnis.index"     label="Alumni & Diplômés" />
                         <x-admin.nav-sub-link route="admin.partnerships.index" label="Partenariats" />
+                        <x-admin.nav-sub-link route="admin.internship-sites.index" label="Lieux de Stage" />
                     </x-admin.nav-group>
 
                     <a href="{{ route('admin.notifications.index') }}"
@@ -286,7 +290,6 @@
 
                     <x-admin.nav-group label="Insertion du site" icon="work">
                         <x-admin.nav-sub-link route="admin.alumnis.index"     label="Alumni" />
-                        <x-admin.nav-sub-link route="admin.partnerships.index" label="Partenariats" />
                     </x-admin.nav-group>
 
                     <a href="{{ route('admin.notifications.index') }}"
@@ -353,7 +356,6 @@
 
                     <x-admin.nav-group label="Insertion Professionnelle" icon="work">
                         <x-admin.nav-sub-link route="admin.alumnis.index"     label="Alumni & Diplômés" />
-                        <x-admin.nav-sub-link route="admin.partnerships.index" label="Partenariats" />
                     </x-admin.nav-group>
 
                     <a href="{{ route('admin.notifications.index') }}"
@@ -376,9 +378,35 @@
                     <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
 
                 @elseif($isSiteAdmin)
-                    {{-- ── Menu exclusif Administrateur de site (Section 9) ── --}}
-                    <x-admin.nav-link route="admin.users.index" icon="group" label="Utilisateurs de mon site" />
+                    {{-- ── Menu Responsable de site (Section 3.2 & Section 9) ── --}}
+                    {{-- Inscriptions & Dossiers --}}
+                    <x-admin.nav-group label="Dossiers & Inscriptions" icon="folder_shared">
+                        <x-admin.nav-sub-link route="admin.enrollments.index" label="Inscriptions" />
+                        <x-admin.nav-sub-link route="admin.students.index"    label="Étudiants" />
+                        <x-admin.nav-sub-link route="admin.parents.index"     label="Parents" />
+                        <x-admin.nav-sub-link route="admin.teachers.index"    label="Enseignants" />
+                    </x-admin.nav-group>
+
+                    {{-- Pédagogie du site --}}
+                    <x-admin.nav-group label="Pédagogie du site" icon="school">
+                        <x-admin.nav-sub-link route="admin.sessions.index"    label="Rentrées" />
+                        <x-admin.nav-sub-link route="admin.courses.index"     label="Cours" />
+                        <x-admin.nav-sub-link route="admin.evaluations.index" label="Évaluations" />
+                        <x-admin.nav-sub-link route="admin.grades.index"      label="Notes" />
+                        <x-admin.nav-sub-link route="admin.attendance.index"  label="Présences" />
+                        <x-admin.nav-sub-link route="admin.results.index"     label="Résultats" />
+                        <x-admin.nav-sub-link route="admin.bulletins.index"   label="Bulletins" />
+                    </x-admin.nav-group>
+
+                    {{-- Finance locale --}}
+                    <x-admin.nav-group label="Finance locale" icon="payments">
+                        <x-admin.nav-sub-link route="admin.payments.index" label="Paiements & Reçus" />
+                    </x-admin.nav-group>
+
+                    {{-- Lieux de Stage & Salles --}}
+                    <x-admin.nav-link route="admin.internship-sites.index" icon="location_on" label="Lieux de Stage" />
                     <x-admin.nav-link route="admin.rooms.index" icon="meeting_room" label="Salles du site" />
+                    <x-admin.nav-link route="admin.users.index" icon="group" label="Utilisateurs de mon site" />
 
                     {{-- Notifications --}}
                     <a href="{{ route('admin.notifications.index') }}"
@@ -399,6 +427,32 @@
                     </a>
 
                     {{-- Paramètres locaux --}}
+                    <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
+
+                @elseif($isRespCommercial)
+                    {{-- ── Menu Responsable Commercial (Section 3.3 & Section 9) ── --}}
+                    <x-admin.nav-link route="admin.enrollments.index" icon="how_to_reg" label="Inscriptions (Tous sites)" />
+                    <x-admin.nav-link route="admin.users.create" icon="person_add" label="Créer un compte étudiant" />
+                    <x-admin.nav-link route="service.reports.index" icon="summarize" label="Rapports d'activité (DG)" />
+
+                    {{-- Notifications --}}
+                    <a href="{{ route('admin.notifications.index') }}"
+                       style="display:flex; align-items:center; justify-content:space-between; padding:0.625rem 0.75rem; border-radius:0.75rem;
+                              color:var(--color-on-surface-variant); text-decoration:none; transition:background 0.15s;"
+                       onmouseover="this.style.background='var(--color-surface-container-high)'; this.style.color='var(--color-on-surface)';"
+                       onmouseout="this.style.background=''; this.style.color='var(--color-on-surface-variant)';">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                            <span style="font-size:0.875rem; font-weight:500;">Notifications</span>
+                        </div>
+                        @if(($unreadNotifications ?? 0) > 0)
+                        <span style="padding:0.125rem 0.5rem; font-size:0.6875rem; font-weight:700; border-radius:9999px;
+                                     background:var(--color-primary-container); color:var(--color-on-primary);">
+                            {{ $unreadNotifications }}
+                        </span>
+                        @endif
+                    </a>
+
                     <x-admin.nav-link route="admin.settings.index" icon="manage_accounts" label="Mon profil" />
                 @else
                     {{-- ── Menu SuperAdmin (Section 9) ── --}}
@@ -451,6 +505,7 @@
                     <x-admin.nav-group label="Organisation" icon="corporate_fare">
                         <x-admin.nav-sub-link route="admin.change-requests.index"  label="Demandes de modification" />
                         <x-admin.nav-sub-link route="admin.partnerships.index"   label="Partenariats" />
+                        <x-admin.nav-sub-link route="admin.internship-sites.index" label="Lieux de stage" />
                         <x-admin.nav-sub-link route="admin.alumnis.index"        label="Alumni / Diplômés" />
                     </x-admin.nav-group>
 

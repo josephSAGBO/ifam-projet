@@ -146,7 +146,7 @@ class NotificationService
             "Une absence a été signalée le {$date} pour le cours « {$coursNom} ».",
             'attendance',
             'event_busy',
-            route('student.attendances'),
+            route('student.attendance'),
             $sentBy
         );
     }

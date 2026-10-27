@@ -18,7 +18,7 @@ trait HasSiteFilter
         if (! $user) {
             abort(401);
         }
-        $canFilterSites = $user->hasAnyRole(['administrateur', 'direction_daf', 'direction_daa']);
+        $canFilterSites = $user->hasAnyRole(['administrateur', 'direction_daf', 'direction_daa', 'responsable_commercial']);
         $sites = Site::query()
             ->where('est_actif', true)
             ->when(! $canFilterSites, fn ($query) => $query->whereRaw('1 = 0'))

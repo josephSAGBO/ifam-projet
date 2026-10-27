@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\EvaluationController;
 use App\Http\Controllers\Admin\ExpenseCategoryController;
 use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\FormationController;
+use App\Http\Controllers\Admin\InternshipSiteController;
 use App\Http\Controllers\Admin\ModuleController;
 use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\ParcoursController;
@@ -154,8 +155,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/admin/notifications/{notification}', [NotificationController::class, 'destroy'])->name('admin.notifications.destroy');
 });
 
-// ── Espace Administrateur, DAF & DAA ──────────────────────────────────────
-Route::middleware(['auth', 'role:administrateur|responsable_site|direction_daf|responsable_administratif_financier|responsable_administratif|secretaire_administratif|charge_scolarite|agent_administratif|responsable_financier|comptable|caissier|agent_recouvrement|direction_daa|responsable_daa|responsable_etudes|responsable_insertion'])
+// ── Espace Administrateur, DAF, DAA & Responsable Commercial ──────────────
+Route::middleware(['auth', 'role:administrateur|responsable_site|responsable_commercial|direction_daf|responsable_administratif_financier|responsable_administratif|secretaire_administratif|charge_scolarite|agent_administratif|responsable_financier|comptable|caissier|agent_recouvrement|direction_daa|responsable_daa|responsable_etudes|responsable_insertion'])
     ->prefix('admin')
     ->name('admin.')
     ->group(function () {
@@ -221,7 +222,12 @@ Route::middleware(['auth', 'role:administrateur|responsable_site|direction_daf|r
         Route::resource('change-requests', ChangeRequestController::class)->only(['index', 'show', 'update']);
 
         // ── Partenariats & Alumni ─────────────────────────────────
-        Route::resource('partnerships', PartnershipController::class);
+        Route::middleware('role:administrateur|direction_daa|direction_daf|responsable_daa|responsable_insertion')->group(function () {
+            Route::resource('partnerships', PartnershipController::class);
+        });
+
+        // ── Lieux de Stage ────────────────────────────────────────
+        Route::resource('internship-sites', InternshipSiteController::class);
         Route::post('alumnis/{studentProfile}/convert', [AlumniController::class, 'convertStudent'])->name('alumnis.convert');
         Route::patch('alumnis/{alumni}/toggle-approval', [AlumniController::class, 'toggleApproval'])->name('alumnis.toggleApproval');
         Route::patch('alumnis/{alumni}/toggle-directory', [AlumniController::class, 'toggleDirectory'])->name('alumnis.toggleDirectory');

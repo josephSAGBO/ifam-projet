@@ -23,7 +23,7 @@ class EnrollmentController extends Controller
     {
         ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
         $query = Enrollment::with(['studentProfile.user', 'formation', 'academicSession', 'payments'])
-            ->when(auth()->check() && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf']), function ($q) {
+            ->when(auth()->check() && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf', 'responsable_commercial']), function ($q) {
                 $q->whereIn('site_id', auth()->user()->accessibleSiteIds());
             })
             ->latest('enrollment_date');
@@ -96,7 +96,7 @@ class EnrollmentController extends Controller
         ]);
 
         $session = AcademicSession::findOrFail($validated['academic_session_id']);
-        if (! auth()->user()->hasSiteAccess($session->site_id)) {
+        if (! auth()->user()->hasAnyRole(['administrateur', 'responsable_commercial']) && ! auth()->user()->hasSiteAccess($session->site_id)) {
             abort(403, 'Accès interdit : vous ne pouvez créer une inscription que pour votre site.');
         }
 
@@ -168,9 +168,7 @@ class EnrollmentController extends Controller
 
     public function show(Enrollment $enrollment)
     {
-        if ($enrollment->site_id && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
-            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
-        }
+        $this->authorizeEnrollmentAccess($enrollment);
 
         $enrollment->load(['studentProfile.user', 'formation.parcours', 'academicSession', 'payments.enregistrePar']);
         $totalPaye = $this->paiementService->totalPaye($enrollment);
@@ -200,9 +198,7 @@ class EnrollmentController extends Controller
 
     public function edit(Enrollment $enrollment)
     {
-        if ($enrollment->site_id && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
-            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
-        }
+        $this->authorizeEnrollmentAccess($enrollment);
 
         $enrollment->load(['studentProfile.user', 'formation', 'academicSession']);
         $formations = Formation::where('is_active', true)->orderBy('name')->get();
@@ -216,9 +212,7 @@ class EnrollmentController extends Controller
 
     public function update(Request $request, Enrollment $enrollment)
     {
-        if ($enrollment->site_id && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
-            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
-        }
+        $this->authorizeEnrollmentAccess($enrollment);
 
         $validated = $request->validate([
             'bourse_type' => 'nullable|in:aucune,pourcentage,montant',
@@ -246,13 +240,18 @@ class EnrollmentController extends Controller
 
     public function destroy(Enrollment $enrollment)
     {
-        if ($enrollment->site_id && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
-            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
-        }
+        $this->authorizeEnrollmentAccess($enrollment);
 
         $enrollment->delete();
 
         return redirect()->route('admin.enrollments.index')
             ->with('success', 'Inscription supprimée avec succès.');
+    }
+
+    private function authorizeEnrollmentAccess(Enrollment $enrollment): void
+    {
+        if ($enrollment->site_id && ! auth()->user()->hasAnyRole(['administrateur', 'responsable_commercial']) && ! auth()->user()->hasSiteAccess($enrollment->site_id)) {
+            abort(403, 'Accès interdit : cette inscription ne relève pas de votre site.');
+        }
     }
 }

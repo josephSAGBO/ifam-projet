@@ -208,6 +208,10 @@ class User extends Authenticatable
             $roleCodes[] = 'insertion_professionnelle';
         }
 
+        if ($this->hasRole('responsable_commercial')) {
+            $roleCodes[] = 'commercial';
+        }
+
         $query = ServiceProfile::active();
         if (empty($assignedIds) && empty($roleCodes)) {
             return $query->whereRaw('1 = 0')->get();
@@ -256,6 +260,7 @@ class User extends Authenticatable
             'financier' => $this->hasAnyRole(['responsable_financier', 'responsable_administratif_financier', 'direction_daf']),
             'pedagogie_etudes' => $this->hasAnyRole(['responsable_etudes', 'responsable_daa', 'direction_daa']),
             'insertion_professionnelle' => $this->hasAnyRole(['responsable_insertion', 'responsable_daa', 'direction_daa']),
+            'commercial' => $this->hasRole('responsable_commercial'),
             'gestion_stocks', 'maintenance_logistique' => $this->hasAnyRole(['direction_daf']),
             default => false,
         };

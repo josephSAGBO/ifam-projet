@@ -1852,3 +1852,14 @@
         transition: none;
     }
 }
+.brand-name {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-size: 1.25rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--color-primary-container);
+}
+
+.brand-accent {
+    font-weight: 800;
+}

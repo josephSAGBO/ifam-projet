@@ -2,7 +2,84 @@
 @section('title', 'Tableau de bord')
 @section('content')
 
-@if($isDirectionDaf)
+@if($isRespCommercial ?? false)
+<div style="margin-bottom:2rem;">
+    <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
+        Tableau de bord — Inscriptions commerciales
+    </h1>
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">
+        Bienvenue, <strong>{{ auth()->user()->first_name }}</strong> — {{ now()->isoFormat('dddd D MMMM YYYY') }}
+    </p>
+</div>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+    @foreach([
+        ['label' => 'Inscriptions totales', 'value' => $commercialSupervision['totalEnrollments'], 'icon' => 'how_to_reg', 'color' => 'var(--color-primary)'],
+        ['label' => 'Ce mois-ci', 'value' => $commercialSupervision['enrollmentsThisMonth'], 'icon' => 'calendar_month', 'color' => '#0ea5e9'],
+        ['label' => 'Inscriptions actives', 'value' => $commercialSupervision['activeEnrollments'], 'icon' => 'verified', 'color' => '#10b981'],
+        ['label' => 'Étudiants inscrits', 'value' => $commercialSupervision['uniqueStudents'], 'icon' => 'groups', 'color' => '#6366f1'],
+    ] as $kpi)
+    <div style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.25rem; box-shadow:0 1px 6px rgba(11,28,48,0.04); display:flex; flex-direction:column; gap:0.75rem;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:0.7rem; font-weight:700; color:var(--color-on-surface-variant); text-transform:uppercase; letter-spacing:0.07em;">{{ $kpi['label'] }}</span>
+            <span class="material-symbols-outlined" style="font-size:20px; color:{{ $kpi['color'] }};">{{ $kpi['icon'] }}</span>
+        </div>
+        <div style="font-family:var(--font-display); font-size:2rem; font-weight:800; color:var(--color-on-surface); line-height:1;">{{ $kpi['value'] }}</div>
+    </div>
+    @endforeach
+</div>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.5rem; margin-bottom:1.5rem;">
+    <section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
+            <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0;">Suivi des inscriptions</h2>
+            <a href="{{ route('admin.enrollments.index') }}" style="font-size:0.8125rem; font-weight:600; color:var(--color-primary); text-decoration:none;">Toutes les inscriptions →</a>
+        </div>
+        @foreach([
+            ['label' => 'Terminées', 'value' => $commercialSupervision['completedEnrollments']],
+            ['label' => 'Suspendues', 'value' => $commercialSupervision['suspendedEnrollments']],
+        ] as $metric)
+        <div style="display:flex; justify-content:space-between; gap:1rem; padding:0.75rem 0; border-bottom:1px solid var(--color-surface-container);">
+            <span style="font-size:0.875rem; color:var(--color-on-surface-variant);">{{ $metric['label'] }}</span>
+            <strong style="color:var(--color-on-surface);">{{ $metric['value'] }}</strong>
+        </div>
+        @endforeach
+    </section>
+
+    <section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+        <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem;">Inscriptions par site</h2>
+        @forelse($enrollmentsBySite as $site)
+        <div style="display:flex; justify-content:space-between; gap:1rem; padding:0.75rem 0; border-bottom:1px solid var(--color-surface-container);">
+            <span style="font-size:0.875rem; color:var(--color-on-surface-variant);">{{ $site->nom }}</span>
+            <strong style="color:var(--color-on-surface);">{{ $site->enrollments_count }}</strong>
+        </div>
+        @empty
+        <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">Aucune inscription enregistrée.</p>
+        @endforelse
+    </section>
+</div>
+
+<section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem;">
+        <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0;">Inscriptions récentes</h2>
+        <a href="{{ route('admin.users.create') }}" style="font-size:0.8125rem; font-weight:600; color:var(--color-primary); text-decoration:none;">Créer un étudiant →</a>
+    </div>
+    @forelse($recentEnrollments as $enrollment)
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:0.75rem; padding:0.8rem 0; border-bottom:1px solid var(--color-surface-container); align-items:center;">
+        <div>
+            <div style="font-size:0.875rem; font-weight:600; color:var(--color-on-surface);">{{ $enrollment->studentProfile?->user?->full_name ?? 'Étudiant non disponible' }}</div>
+            <div style="font-size:0.75rem; color:var(--color-on-surface-variant);">{{ $enrollment->enrollment_date?->format('d/m/Y') ?? 'Date non renseignée' }}</div>
+        </div>
+        <div style="font-size:0.8125rem; color:var(--color-on-surface);">{{ $enrollment->formation?->name ?? 'Formation indisponible' }}</div>
+        <div style="font-size:0.8125rem; color:var(--color-on-surface-variant);">{{ $enrollment->academicSession?->name ?? 'Rentrée non renseignée' }}</div>
+        <div style="font-size:0.8125rem; color:var(--color-on-surface-variant);">{{ $enrollment->academicSession?->site?->nom ?? 'Site non renseigné' }}</div>
+        <div style="font-size:0.75rem; font-weight:600; color:{{ $enrollment->status === 'active' ? '#059669' : '#6b7280' }};">{{ ['active' => 'Active', 'suspended' => 'Suspendue', 'completed' => 'Terminée', 'cancelled' => 'Annulée'][$enrollment->status] ?? $enrollment->status }}</div>
+    </div>
+    @empty
+    <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">Aucune inscription enregistrée.</p>
+    @endforelse
+</section>
+@elseif($isDirectionDaf)
 <div style="margin-bottom:2rem;">
     <h1 style="font-family:var(--font-display); font-size:1.625rem; font-weight:700; color:var(--color-on-surface); margin:0 0 0.25rem;">
         Tableau de bord — Supervision DAF Globale
@@ -416,6 +493,68 @@
         @empty
         <p style="font-size:0.875rem; color:var(--color-on-surface-variant); margin:0;">Aucune salle associée à ce site.</p>
         @endforelse
+    </section>
+</div>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.5rem; margin-top:1.5rem;">
+    <section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+        <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem;">Effectifs du site</h2>
+        @foreach([
+            ['label' => 'Étudiants inscrits', 'value' => $peopleSupervision['students']],
+            ['label' => 'Enseignants', 'value' => $peopleSupervision['teachers']],
+        ] as $metric)
+        <div style="display:flex; justify-content:space-between; gap:1rem; padding:0.75rem 0; border-bottom:1px solid var(--color-surface-container);">
+            <span style="font-size:0.875rem; color:var(--color-on-surface-variant);">{{ $metric['label'] }}</span>
+            <strong style="color:var(--color-on-surface);">{{ $metric['value'] }}</strong>
+        </div>
+        @endforeach
+    </section>
+
+    <section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+        <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem;">Activité pédagogique</h2>
+        @foreach([
+            ['label' => 'Rentrées académiques', 'value' => $academicSupervision['sessions'], 'detail' => $academicSupervision['currentSessions'].' en cours'],
+            ['label' => 'Inscriptions', 'value' => $academicSupervision['enrollments'], 'detail' => $academicSupervision['activeEnrollments'].' actives'],
+            ['label' => 'Cours', 'value' => $academicSupervision['courses'], 'detail' => ''],
+            ['label' => 'Évaluations', 'value' => $academicSupervision['evaluations'], 'detail' => ''],
+            ['label' => 'Présences enregistrées', 'value' => $academicSupervision['attendances'], 'detail' => ''],
+        ] as $metric)
+        <div style="display:flex; justify-content:space-between; gap:1rem; padding:0.65rem 0; border-bottom:1px solid var(--color-surface-container);">
+            <span style="font-size:0.875rem; color:var(--color-on-surface-variant);">{{ $metric['label'] }}{{ $metric['detail'] !== '' ? ' · '.$metric['detail'] : '' }}</span>
+            <strong style="color:var(--color-on-surface);">{{ $metric['value'] }}</strong>
+        </div>
+        @endforeach
+    </section>
+
+    <section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+        <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem;">Suivi financier</h2>
+        @foreach([
+            ['label' => 'Encaissements validés', 'value' => number_format($financialSupervision['totalRevenue'], 0, ',', ' ').' FCFA'],
+            ['label' => 'Encaissements du mois', 'value' => number_format($financialSupervision['revenueThisMonth'], 0, ',', ' ').' FCFA'],
+            ['label' => 'Paiements à valider', 'value' => $financialSupervision['paymentsToValidate']],
+            ['label' => 'Dépenses enregistrées', 'value' => number_format($financialSupervision['totalExpenses'], 0, ',', ' ').' FCFA'],
+        ] as $metric)
+        <div style="display:flex; justify-content:space-between; gap:1rem; padding:0.65rem 0; border-bottom:1px solid var(--color-surface-container);">
+            <span style="font-size:0.875rem; color:var(--color-on-surface-variant);">{{ $metric['label'] }}</span>
+            <strong style="color:var(--color-on-surface);">{{ $metric['value'] }}</strong>
+        </div>
+        @endforeach
+    </section>
+
+    <section style="background:var(--color-surface-container-lowest); border-radius:1rem; padding:1.5rem; box-shadow:0 1px 6px rgba(11,28,48,0.04);">
+        <h2 style="font-size:1rem; font-weight:700; color:var(--color-on-surface); margin:0 0 1rem;">Insertion & partenariats</h2>
+        @foreach([
+            ['label' => 'Alumni', 'value' => $insertionSupervision['alumni']],
+            ['label' => 'Profils visibles', 'value' => $insertionSupervision['visibleAlumni']],
+            ['label' => 'Publications Alumni', 'value' => $insertionSupervision['publishedPosts']],
+            ['label' => 'Partenariats', 'value' => $insertionSupervision['partnerships']],
+            ['label' => 'Partenariats actifs', 'value' => $insertionSupervision['activePartnerships']],
+        ] as $metric)
+        <div style="display:flex; justify-content:space-between; gap:1rem; padding:0.65rem 0; border-bottom:1px solid var(--color-surface-container);">
+            <span style="font-size:0.875rem; color:var(--color-on-surface-variant);">{{ $metric['label'] }}</span>
+            <strong style="color:var(--color-on-surface);">{{ $metric['value'] }}</strong>
+        </div>
+        @endforeach
     </section>
 </div>
 @else

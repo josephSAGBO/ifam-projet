@@ -102,6 +102,10 @@ class LoginController extends Controller
             'responsable_insertion',
         ];
 
+        if ($user->hasRole('responsable_commercial')) {
+            return redirect()->route('admin.dashboard');
+        }
+
         if ($user->hasAnyRole($adminRoles)) {
             return redirect()->route('admin.dashboard');
         }

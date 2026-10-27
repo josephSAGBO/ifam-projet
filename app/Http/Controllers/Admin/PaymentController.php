@@ -27,7 +27,7 @@ class PaymentController extends Controller
     public function index(Request $request): View
     {
         ['sites' => $sites, 'selectedSiteId' => $selectedSiteId] = $this->siteFilter($request);
-        if (auth()->check() && ! auth()->user()->can('view payments') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+        if (auth()->check() && ! auth()->user()->can('view payments') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf', 'responsable_site'])) {
             abort(403, 'Accès interdit : vous n\'avez pas les permissions pour consulter les paiements financiers.');
         }
 
@@ -60,12 +60,12 @@ class PaymentController extends Controller
 
     public function create(Request $request)
     {
-        if (auth()->check() && ! auth()->user()->can('create payments') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+        if (auth()->check() && ! auth()->user()->can('create payments') && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf', 'responsable_site', 'responsable_commercial'])) {
             abort(403, "Vous n'avez pas la permission d'enregistrer des paiements.");
         }
 
         $query = Enrollment::with(['studentProfile.user', 'formation.parcours', 'academicSession', 'payments']);
-        if (auth()->check() && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+        if (auth()->check() && ! auth()->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf', 'responsable_commercial'])) {
             $query->whereIn('site_id', auth()->user()->accessibleSiteIds());
         }
 
@@ -94,7 +94,7 @@ class PaymentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        if (! $request->user()->can('create payments') && ! $request->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf'])) {
+        if (! $request->user()->can('create payments') && ! $request->user()->hasAnyRole(['administrateur', 'direction', 'direction_daf', 'responsable_site', 'responsable_commercial'])) {
             abort(403, "Vous n'avez pas la permission d'enregistrer des paiements.");
         }
 
@@ -108,7 +108,7 @@ class PaymentController extends Controller
         ]);
 
         $enrollment = Enrollment::findOrFail($validated['inscription_id']);
-        if (! $request->user()->hasSiteAccess($enrollment->site_id)) {
+        if (! $request->user()->hasAnyRole(['administrateur', 'responsable_commercial']) && ! $request->user()->hasSiteAccess($enrollment->site_id)) {
             abort(403, 'Accès interdit : vous ne pouvez enregistrer un paiement que pour votre site.');
         }
 
@@ -141,7 +141,7 @@ class PaymentController extends Controller
 
     public function receipt(Payment $payment): View
     {
-        if ($payment->enrollment && ! auth()->user()->hasSiteAccess($payment->enrollment->site_id)) {
+        if ($payment->enrollment && ! auth()->user()->hasAnyRole(['administrateur', 'responsable_commercial']) && ! auth()->user()->hasSiteAccess($payment->enrollment->site_id)) {
             abort(403, 'Accès interdit à ce reçu de paiement.');
         }
 
@@ -206,13 +206,13 @@ class PaymentController extends Controller
     {
         $user = auth()->user();
         abort_unless(
-            $user->can('print receipts') || $user->hasRole('administrateur'),
+            $user->can('print receipts') || $user->hasAnyRole(['administrateur', 'responsable_commercial']),
             403,
             'Vous n’avez pas la permission de publier les reçus.'
         );
         abort_unless($payment->enrollment, 403, 'Ce paiement n’est lié à aucune inscription.');
 
-        if (! $user->hasSiteAccess($payment->enrollment->site_id)) {
+        if (! $user->hasAnyRole(['administrateur', 'responsable_commercial']) && ! $user->hasSiteAccess($payment->enrollment->site_id)) {
             abort(403, 'Accès interdit à ce reçu de paiement.');
         }
     }

@@ -60,6 +60,15 @@ class UserController extends Controller
             return;
         }
 
+        // 3. Responsable commercial : gestion transversale des étudiants uniquement
+        if ($currentUser->hasRole('responsable_commercial')) {
+            if (! $targetUser->hasRole('etudiant')) {
+                abort(403, 'Action non autorisée : le responsable commercial ne peut accéder qu\'aux comptes étudiants.');
+            }
+
+            return;
+        }
+
         abort(403, 'Action non autorisée.');
     }
 
@@ -70,11 +79,14 @@ class UserController extends Controller
         /** @var User $currentUser */
         $currentUser = auth()->user();
         $isSuperAdmin = $currentUser->hasRole('administrateur');
+        // Le responsable commercial a un périmètre transversal sur les inscriptions ;
+        // il doit aussi pouvoir consulter les utilisateurs (étudiants) de tous les sites.
+        $isRespCommercial = $currentUser->hasRole('responsable_commercial');
 
         $query = User::with(['roles', 'sites'])->orderByDesc('created_at');
 
-        // Scoping par site
-        if (! $isSuperAdmin) {
+        // Scoping par site : superadmin et responsable_commercial voient tous les sites
+        if (! $isSuperAdmin && ! $isRespCommercial) {
             $managedSiteIds = $currentUser->sites()->pluck('sites.id')->all();
             $query->whereHas('sites', function ($q) use ($managedSiteIds) {
                 $q->whereIn('sites.id', $managedSiteIds);
@@ -85,8 +97,10 @@ class UserController extends Controller
             });
         }
 
-        // Filtre par rôle
-        if ($request->filled('role')) {
+        // Filtre par rôle : pour le commercial, restreint aux étudiants
+        if ($isRespCommercial) {
+            $query->role('etudiant');
+        } elseif ($request->filled('role')) {
             $query->role($request->role);
         }
 
@@ -113,10 +127,11 @@ class UserController extends Controller
         }
 
         $users = $query->paginate(20)->withQueryString();
-        $roles = Role::orderBy('name')->get();
-        $sites = $isSuperAdmin ? Site::activeSites() : $currentUser->sites()->where('est_actif', true)->get();
+        $roles = $isRespCommercial ? Role::where('name', 'etudiant')->get() : Role::orderBy('name')->get();
+        $canFilterSite = $isSuperAdmin || $isRespCommercial;
+        $sites = $canFilterSite ? Site::activeSites() : $currentUser->sites()->where('est_actif', true)->get();
 
-        return view('admin.users.index', compact('users', 'roles', 'sites', 'isSuperAdmin'));
+        return view('admin.users.index', compact('users', 'roles', 'sites', 'isSuperAdmin', 'canFilterSite'));
     }
 
     // ── Créer ─────────────────────────────────────────────────────────────
@@ -126,11 +141,14 @@ class UserController extends Controller
         /** @var User $currentUser */
         $currentUser = auth()->user();
         $isSuperAdmin = $currentUser->hasRole('administrateur');
+        // Le responsable commercial peut créer des étudiants sur n'importe quel site
+        $isRespCommercial = ! $isSuperAdmin && $currentUser->hasRole('responsable_commercial');
 
-        // Rôles autorisés à la création
-        $roles = Role::whereIn('name', ['etudiant', 'enseignant', 'direction', 'parent'])->get();
+        // Rôles autorisés à la création selon le rôle de l'acteur
+        $allowedRoleNames = $this->allowedCreatableRoles($currentUser);
+        $roles = Role::whereIn('name', $allowedRoleNames)->orderBy('name')->get();
 
-        if ($isSuperAdmin) {
+        if ($isSuperAdmin || $isRespCommercial) {
             $sites = Site::activeSites();
             $defaultSiteId = Site::defaultActiveId();
         } else {
@@ -138,7 +156,10 @@ class UserController extends Controller
             $defaultSiteId = $sites->first()?->id;
         }
 
-        return view('admin.users.create', compact('roles', 'sites', 'isSuperAdmin', 'defaultSiteId'));
+        // Pour le formulaire : afficher le sélecteur de site si superadmin ou responsable commercial
+        $canChooseSite = $isSuperAdmin || $isRespCommercial;
+
+        return view('admin.users.create', compact('roles', 'sites', 'canChooseSite', 'isSuperAdmin', 'defaultSiteId'));
     }
 
     public function store(Request $request)
@@ -146,15 +167,10 @@ class UserController extends Controller
         /** @var User $currentUser */
         $currentUser = auth()->user();
         $isSuperAdmin = $currentUser->hasRole('administrateur');
+        // Le responsable commercial est transversal : il choisit lui aussi le site de l'étudiant
+        $isRespCommercial = ! $isSuperAdmin && $currentUser->hasRole('responsable_commercial');
 
-        // Imposition stricte du site côté serveur pour l'administrateur de site
-        if (! $isSuperAdmin) {
-            $managedSite = $currentUser->sites()->where('est_actif', true)->first();
-            if (! $managedSite) {
-                abort(403, 'Aucun site actif n\'est associé à votre compte administrateur.');
-            }
-            $targetSiteId = $managedSite->id;
-        } else {
+        if ($isSuperAdmin) {
             $validatedSite = $request->validate([
                 'site_id' => ['required', Rule::exists('sites', 'id')->where('est_actif', true)],
             ], [
@@ -162,7 +178,29 @@ class UserController extends Controller
                 'site_id.exists' => 'Le site sélectionné n\'est pas valide ou est inactif.',
             ]);
             $targetSiteId = (int) $validatedSite['site_id'];
+        } elseif ($isRespCommercial) {
+            // Le responsable commercial peut choisir le site s'il le précise, sinon son site de rattachement
+            if ($request->filled('site_id')) {
+                $validatedSite = $request->validate([
+                    'site_id' => [Rule::exists('sites', 'id')->where('est_actif', true)],
+                ], [
+                    'site_id.exists' => 'Le site sélectionné n\'est pas valide ou est inactif.',
+                ]);
+                $targetSiteId = (int) $validatedSite['site_id'];
+            } else {
+                $targetSiteId = (int) ($currentUser->sites()->where('est_actif', true)->first()?->id ?? Site::defaultActiveId());
+            }
+        } else {
+            // Imposition stricte du site côté serveur pour les autres rôles locaux
+            $managedSite = $currentUser->sites()->where('est_actif', true)->first();
+            if (! $managedSite) {
+                abort(403, 'Aucun site actif n\'est associé à votre compte.');
+            }
+            $targetSiteId = $managedSite->id;
         }
+
+        // Rôles autorisés en création pour l'acteur courant (vérification serveur)
+        $allowedRoles = $this->allowedCreatableRoles($currentUser);
 
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:100'],
@@ -171,7 +209,7 @@ class UserController extends Controller
             'birth_date' => ['nullable', 'date', 'before:today'],
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'email:rfc', 'unique:users,email'],
-            'role' => ['required', 'in:etudiant,enseignant,direction,parent'],
+            'role' => ['required', Rule::in($allowedRoles)],
             'photo' => ['nullable', 'image', 'max:2048'],
         ], [
             'first_name.required' => 'Le prénom est obligatoire.',
@@ -180,7 +218,7 @@ class UserController extends Controller
             'email.email' => 'Veuillez saisir une adresse email valide (ex. nom@domaine.com).',
             'email.unique' => 'Cette adresse email est déjà associée à un compte IFAM.',
             'role.required' => 'Veuillez sélectionner un rôle.',
-            'role.in' => 'Le rôle sélectionné n\'est pas valide pour la création.',
+            'role.in' => 'Le rôle sélectionné n\'est pas autorisé pour votre niveau d\'accès.',
             'photo.image' => 'Le fichier doit être une image.',
             'photo.max' => 'L\'image ne doit pas dépasser 2Mo.',
         ]);
@@ -394,5 +432,34 @@ class UserController extends Controller
         }
 
         return back()->with('success', "Un nouveau lien d'activation valable 48 heures a été envoyé à {$user->email}.");
+    }
+
+    // ── Helper : rôles créables selon l'acteur ────────────────────────────
+
+    /**
+     * Renvoie la liste des noms de rôles que l'acteur courant peut attribuer
+     * lors de la création d'un compte.
+     *
+     * @return string[]
+     */
+    protected function allowedCreatableRoles(User $actor): array
+    {
+        if ($actor->hasRole('administrateur')) {
+            // Le superadmin peut créer n'importe quel rôle sauf administrateur
+            return Role::where('name', '!=', 'administrateur')->pluck('name')->all();
+        }
+
+        if ($actor->hasRole('responsable_commercial')) {
+            // Le responsable commercial ne peut créer que des étudiants
+            return ['etudiant'];
+        }
+
+        if ($actor->hasRole('responsable_site')) {
+            // L'administrateur de site peut créer enseignants, parents et étudiants
+            return ['enseignant', 'parent', 'etudiant'];
+        }
+
+        // Par défaut : rôles basiques uniquement
+        return ['etudiant', 'enseignant', 'parent'];
     }
 }

@@ -447,4 +447,60 @@ class ServiceReportTest extends TestCase
         $response->assertOk();
         $this->assertTrue(str_contains($response->headers->get('content-type') ?? '', 'pdf') || str_contains($response->headers->get('content-disposition') ?? '', '.pdf'));
     }
+
+    /**
+     * Test 11 : Le responsable commercial peut rédiger et envoyer un rapport d'activité à la Direction.
+     */
+    public function test_responsable_commercial_can_create_and_send_report_to_direction(): void
+    {
+        $commercial = User::create([
+            'first_name' => 'Commercial',
+            'last_name' => 'IFAM',
+            'email' => 'commercial.report@ifam.test',
+            'password' => bcrypt('password'),
+            'is_active' => true,
+        ]);
+        $commercial->assignRole('responsable_commercial');
+
+        $commercialService = ServiceProfile::where('code', 'commercial')->firstOrFail();
+
+        // 1. Accès à la liste des rapports et au formulaire
+        $responseIndex = $this->actingAs($commercial)->get(route('service.reports.index'));
+        $responseIndex->assertOk();
+
+        $responseCreate = $this->actingAs($commercial)->get(route('service.reports.create'));
+        $responseCreate->assertOk();
+        $responseCreate->assertSee('Commercial');
+
+        // 2. Création et transmission directe à la Direction
+        $responseStore = $this->actingAs($commercial)->post(route('service.reports.store'), [
+            'service_profile_id' => $commercialService->id,
+            'site_id' => $this->siteCotonou->id,
+            'type' => 'mensuel',
+            'periode_debut' => '2026-10-01',
+            'periode_fin' => '2026-10-31',
+            'titre' => 'Rapport commercial mensuel des inscriptions',
+            'resume' => 'Bilan des inscriptions et objectifs atteints',
+            'activites' => 'Prospection, salons et validation des inscriptions transversales',
+            'difficultes' => 'Aucune difficulté majeure',
+            'besoins' => 'Supports de communication supplémentaires',
+            'action' => 'send',
+        ]);
+
+        $responseStore->assertRedirect(route('service.reports.index'));
+        $responseStore->assertSessionHas('success');
+
+        // 3. Vérification en base de données
+        $this->assertDatabaseHas('service_reports', [
+            'service_profile_id' => $commercialService->id,
+            'titre' => 'Rapport commercial mensuel des inscriptions',
+            'statut' => ServiceReport::STATUT_ENVOYE,
+        ]);
+
+        // 4. Notification transmise à la Direction
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->directionUser->id,
+            'type' => 'report',
+        ]);
+    }
 }
